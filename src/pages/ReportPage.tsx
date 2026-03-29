@@ -173,7 +173,7 @@ function SprintSummaryCard({ sprints }: { sprints: Sprint[] }) {
             />
             <MetricCard
               label="Átlagos velocity"
-              value={`${avgVelocity} pt`}
+              value={`${avgVelocity} SP`}
               hint="Lezárt sprintek completedPoints átlaga"
               icon={<BarChart3 className="h-5 w-5" />}
             />
@@ -190,7 +190,7 @@ function SprintSummaryCard({ sprints }: { sprints: Sprint[] }) {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-700">
-                    {sprint.stats.completedPoints}/{sprint.stats.totalPoints} pt
+                    {sprint.stats.completedPoints}/{sprint.stats.totalPoints} SP
                   </p>
                   <p className="text-xs text-gray-500">{sprint.status === 'active' ? 'Aktív' : sprint.status === 'completed' ? 'Lezárt' : 'Tervezés'}</p>
                 </div>
@@ -448,9 +448,9 @@ export function ReportPage() {
           icon={<Rocket className="h-5 w-5" />}
         />
         <MetricCard
-          label="Becsült pont"
-          value={`${estimatedPoints} pt`}
-          hint={`${completedPoints} pt teljesítve`}
+          label="Becsült SP"
+          value={`${estimatedPoints} SP`}
+          hint={`${completedPoints} SP teljesítve`}
           icon={<BarChart3 className="h-5 w-5" />}
         />
         <MetricCard
@@ -469,7 +469,7 @@ export function ReportPage() {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-gray-900">{progressPercent}%</p>
-            <p className="text-xs text-gray-500">{completedPoints}/{estimatedPoints} pont</p>
+            <p className="text-xs text-gray-500">{completedPoints}/{estimatedPoints} SP</p>
           </div>
         </div>
         <div className="mt-4 h-3 rounded-full bg-gray-100">

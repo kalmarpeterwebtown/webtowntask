@@ -187,7 +187,7 @@ function applyMarkdownFormat(
 export function StoryDetailPage() {
   const { projectId, storyId } = useParams<{ projectId: string; storyId: string }>()
   const navigate = useNavigate()
-  const { currentOrg } = useOrgStore()
+  const { currentOrg, orgRole } = useOrgStore()
   const { userProfile } = useAuthStore()
   const { projects: allProjects } = useProjects()
   const {
@@ -197,6 +197,7 @@ export function StoryDetailPage() {
   } = useProjectAccessMap(allProjects)
   const projectAccess = projectId ? accessByProjectId[projectId] ?? null : null
   const readOnly = !canWrite(projectAccess ?? undefined)
+  const canViewWorklogs = orgRole !== 'client'
   const canAccessProject = visibleProjects.some((project) => project.id === projectId)
 
   const [story, setStory] = useState<Story | null>(null)
@@ -772,11 +773,13 @@ export function StoryDetailPage() {
                         )}>
                           {task.title}
                         </span>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                          {minutesToDisplay(task.totalWorklogMinutes ?? 0)}
-                        </span>
+                        {canViewWorklogs && (
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                            {minutesToDisplay(task.totalWorklogMinutes ?? 0)}
+                          </span>
+                        )}
                       </div>
-                      {!readOnly && (
+                      {!readOnly && canViewWorklogs && (
                         <div className="mt-2 grid gap-2 sm:grid-cols-[96px,1fr,auto]">
                           <input
                             type="text"
@@ -977,7 +980,8 @@ export function StoryDetailPage() {
             </div>
           </section>
 
-          <section>
+          {canViewWorklogs && (
+            <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Clock3 className="h-4 w-4" />
@@ -1050,7 +1054,8 @@ export function StoryDetailPage() {
                 )}
               </div>
             </div>
-          </section>
+            </section>
+          )}
 
           {/* Comments */}
           <section>

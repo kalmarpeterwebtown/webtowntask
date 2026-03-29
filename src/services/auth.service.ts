@@ -3,8 +3,11 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  updatePassword,
   updateProfile,
   type User,
 } from 'firebase/auth'
@@ -55,6 +58,18 @@ export async function signOut() {
 
 export async function sendPasswordReset(email: string) {
   return sendPasswordResetEmail(auth, email)
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const user = auth.currentUser
+
+  if (!user?.email) {
+    throw new Error('missing-user')
+  }
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword)
+  await reauthenticateWithCredential(user, credential)
+  await updatePassword(user, newPassword)
 }
 
 export async function refreshClaims() {

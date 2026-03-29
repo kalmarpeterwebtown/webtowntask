@@ -1,7 +1,7 @@
 export function ClientProjectPage() {
   return (
     <div className="p-6">
-      <h1 className="text-xl font-semibold text-gray-900">Kliens projekt</h1>
+      <h1 className="text-xl font-semibold text-gray-900">Ügyfél projekt</h1>
       <p className="mt-2 text-sm text-gray-500">Ez az oldal fejlesztés alatt áll.</p>
     </div>
   )

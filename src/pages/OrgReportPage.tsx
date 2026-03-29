@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { onSnapshot, query, orderBy } from 'firebase/firestore'
-import { Building2, FolderKanban, AlertTriangle, BarChart3 } from 'lucide-react'
+import { Building2, FolderKanban, AlertTriangle, BarChart3, ArrowRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useOrgStore } from '@/stores/orgStore'
 import { useProjects } from '@/hooks/useProjects'
 import { storiesRef } from '@/utils/firestore'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ROUTES } from '@/config/constants'
 import type { Story } from '@/types/models'
 
 function OrgMetric({
@@ -120,8 +122,8 @@ export function OrgReportPage() {
           icon={<BarChart3 className="h-5 w-5" />}
         />
         <OrgMetric
-          label="Becsült pont"
-          value={`${totalEstimatedPoints} pt`}
+          label="Becsült SP"
+          value={`${totalEstimatedPoints} SP`}
           hint="Az összes aktív projektben"
           icon={<Building2 className="h-5 w-5" />}
         />
@@ -134,19 +136,32 @@ export function OrgReportPage() {
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-gray-900">Projekt összehasonlítás</h2>
-          <p className="mt-1 text-sm text-gray-500">Melyik projektben mennyi story és kockázat gyűlt össze.</p>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Projekt összehasonlítás</h2>
+            <p className="mt-1 text-sm text-gray-500">Melyik projektben mennyi story és kockázat gyűlt össze.</p>
+          </div>
+          <Link
+            to={ROUTES.PROJECTS}
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline"
+          >
+            Projektek
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
 
         <div className="space-y-3">
           {topProjects.map((project) => (
-            <div key={project.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3">
+            <Link
+              key={project.id}
+              to={ROUTES.REPORTS(project.id)}
+              className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 transition-all hover:bg-white hover:shadow-sm hover:ring-1 hover:ring-primary-100"
+            >
               <div>
                 <p className="text-sm font-medium text-gray-800">{project.name}</p>
-                <p className="text-xs text-gray-500">{project.prefix}</p>
+                <p className="text-xs text-gray-500">{project.prefix} · Projekt riport megnyitása</p>
               </div>
-              <div className="flex gap-6 text-right">
+              <div className="flex items-center gap-6 text-right">
                 <div>
                   <p className="text-sm font-semibold text-gray-800">{project.storyCount}</p>
                   <p className="text-xs text-gray-500">story</p>
@@ -159,8 +174,11 @@ export function OrgReportPage() {
                   <p className="text-sm font-semibold text-gray-800">{project.blockedCount}</p>
                   <p className="text-xs text-gray-500">blokkolt</p>
                 </div>
+                <div className="text-primary-500">
+                  <ArrowRight className="h-4 w-4" />
+                </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

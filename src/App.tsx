@@ -72,7 +72,7 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* Kliens portál layout */}
+          {/* Ügyfél portál layout */}
           <Route element={<ClientLayout />}>
             <Route path="/client" element={<ClientDashboardPage />} />
             <Route path="/client/projects/:projectId" element={<ClientProjectPage />} />

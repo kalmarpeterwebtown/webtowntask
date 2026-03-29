@@ -135,8 +135,8 @@ export function OrgSettingsPage() {
         <h2 className="mb-2 text-sm font-semibold text-gray-700">Funkciók</h2>
         <div className="rounded-xl border border-gray-200 bg-white px-4">
           <ToggleRow
-            label="Kliens kommentelés"
-            description="Client szerepkörű felhasználók is írhatnak kommentet story-kra."
+            label="Ügyfél kommentelés"
+            description="Ügyfél szerepkörű felhasználók is írhatnak kommentet story-kra."
             checked={clientCommenting}
             onChange={setClientCommenting}
           />

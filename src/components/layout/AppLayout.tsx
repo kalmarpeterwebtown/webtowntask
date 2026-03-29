@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { MobileNav } from './MobileNav'
 import { NotificationPanel } from './NotificationPanel'
+import { GlobalSearchDialog } from './GlobalSearchDialog'
 import { clsx } from 'clsx'
 
 export function AppLayout() {
@@ -44,6 +45,7 @@ export function AppLayout() {
       </div>
 
       <NotificationPanel />
+      <GlobalSearchDialog />
     </div>
   )
 }

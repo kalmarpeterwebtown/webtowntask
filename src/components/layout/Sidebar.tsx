@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   LayoutDashboard, FolderKanban, Users, BarChart2,
-  Settings, ChevronDown, Plus, LogOut, User,
+  Settings, ChevronDown, LogOut, User,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
@@ -128,18 +128,6 @@ export function Sidebar() {
           )}
         </div>
       </nav>
-
-      {/* Quick add button */}
-      <div className="px-3 pb-2">
-        <button
-          onClick={() => {}}
-          className="flex w-full items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-2 text-sm text-white/50 hover:border-primary-500 hover:text-primary-400 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Új story
-        </button>
-      </div>
-
       {/* User profile */}
       <div className="border-t border-white/10 p-3">
         <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">

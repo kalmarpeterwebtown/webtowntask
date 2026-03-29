@@ -52,7 +52,7 @@ export function OrgGuard() {
   return <Outlet />
 }
 
-/** Kliens szerep számára — standard app nézet helyett Client layout-ot jelenít meg */
+/** Ügyfél szerep számára — standard app nézet helyett ügyfél layout-ot jelenít meg */
 export function ClientGuard() {
   const { orgRole } = useOrgStore()
   if (orgRole === 'client') {

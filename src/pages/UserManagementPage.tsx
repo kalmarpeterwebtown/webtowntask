@@ -57,7 +57,7 @@ const ROLE_LABELS: Record<OrgRole, string> = {
   owner: 'Tulajdonos',
   admin: 'Admin',
   standard: 'Standard',
-  client: 'Kliens',
+  client: 'Ügyfél',
 }
 
 const ROLE_ICONS: Record<OrgRole, React.ReactNode> = {
@@ -76,7 +76,7 @@ const ACCESS_LABELS: Record<AccessLevel, string> = {
 const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
   developer: 'Fejlesztő',
   po: 'PO',
-  client: 'Kliens',
+  client: 'Ügyfél',
   stakeholder: 'Stakeholder',
 }
 
@@ -501,7 +501,7 @@ export function UserManagementPage() {
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-primary-500 focus:outline-none"
               >
                 <option value="standard">Standard (fejlesztő / PO)</option>
-                <option value="client">Kliens (csak olvasás)</option>
+                <option value="client">Ügyfél (csak olvasás)</option>
               </select>
             </div>
             <div className="flex gap-2 pt-2">

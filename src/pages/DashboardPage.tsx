@@ -413,179 +413,188 @@ export function DashboardPage() {
         </section>
       </div>
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Hozzám rendelt munkák</h2>
-          <Link to={ROUTES.PROJECTS} className="flex items-center gap-1 text-sm text-primary-600 hover:underline">
-            Összes projekt <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        {loadingStories || loadingTasks ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-xl border border-gray-200 bg-white px-4 py-3 animate-pulse">
-                <div className="h-3 w-2/3 rounded bg-gray-100" />
-                <div className="mt-2 h-3 w-1/3 rounded bg-gray-100" />
-              </div>
-            ))}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Hozzám rendelt munkák</h2>
+              <p className="mt-1 text-sm text-gray-500">Taskok és közvetlenül hozzám rendelt story-k</p>
+            </div>
+            <Link to={ROUTES.PROJECTS} className="flex items-center gap-1 text-sm text-primary-600 hover:underline">
+              Összes projekt <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-        ) : myTasks.length === 0 && myStories.length === 0 ? (
-          <EmptyState
-            icon={<CheckSquare className="h-8 w-8" />}
-            title="Még nincs hozzád rendelt munka"
-            description="A taskok és a közvetlenül hozzád rendelt story-k itt jelennek meg."
-            action={
-              <Link to={ROUTES.PROJECTS}>
-                <Button variant="outline" size="sm">Projektek böngészése</Button>
-              </Link>
-            }
-          />
-        ) : (
-          <div className="space-y-4">
-            {myTasks.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Taskok</p>
-                {myTasks.slice(0, 8).map((task) => {
-                  const target = task.projectId ? ROUTES.STORY(task.projectId, task.storyId) : null
-                  const content = (
-                    <>
-                      <p className="text-sm font-medium text-gray-800">{task.title}</p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Hozzám rendelt task · {minutesToDisplay(task.totalWorklogMinutes ?? 0)}
-                      </p>
-                    </>
-                  )
-                  return target ? (
-                    <Link
-                      key={task.id}
-                      to={target}
-                      className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm"
-                    >
-                      {content}
-                    </Link>
-                  ) : (
-                    <div
-                      key={task.id}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-3"
-                    >
-                      {content}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
 
-            {myStories.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Story-k</p>
-                {myStories.map((story) => {
-                  const project = projects.find((p) => p.id === story.projectId)
-                  return (
-                    <Link
-                      key={story.id}
-                      to={ROUTES.STORY(story.projectId, story.id)}
-                      className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm transition-all"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          {project && (
-                            <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">
-                              {project.prefix}-{story.sequenceNumber}
-                            </span>
-                          )}
-                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${TYPE_COLORS[story.type]}`}>
-                            {TYPE_LABELS[story.type]}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-gray-800 truncate">{story.title}</p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_COLORS[story.status]}`}>
-                        {STATUS_LABELS[story.status]}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900">Saját időráfordításom</h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedPeriodDays(7)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 7 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
-            >
-              7 nap
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedPeriodDays(30)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 30 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
-            >
-              30 nap
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedPeriodDays(90)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 90 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
-            >
-              90 nap
-            </button>
-          </div>
-        </div>
-
-        {loadingWorklogs ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-xl border border-gray-200 bg-white px-4 py-3 animate-pulse">
-                <div className="h-3 w-2/3 rounded bg-gray-100" />
-              </div>
-            ))}
-          </div>
-        ) : visibleWorklogs.length === 0 ? (
-          <EmptyState
-            icon={<Clock className="h-8 w-8" />}
-            title="Még nincs worklogod erre az időszakra"
-            description="A storykon vagy taskokon rögzített időráfordítás itt fog megjelenni."
-          />
-        ) : (
-          <div className="space-y-2">
-            {visibleWorklogs.slice(0, 8).map((worklog) => {
-              const target = worklog.projectId ? ROUTES.STORY(worklog.projectId, worklog.storyId) : null
-              const content = (
-                <>
-                  <p className="text-sm font-medium text-gray-800">
-                    {worklog.description?.trim() || 'Worklog bejegyzés'}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {worklog.date} · {minutesToDisplay(worklog.minutes)}
-                  </p>
-                </>
-              )
-
-              return target ? (
-                <Link
-                  key={worklog.id}
-                  to={target}
-                  className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm"
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div key={worklog.id} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  {content}
+          {loadingStories || loadingTasks ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 animate-pulse">
+                  <div className="h-3 w-2/3 rounded bg-gray-100" />
+                  <div className="mt-2 h-3 w-1/3 rounded bg-gray-100" />
                 </div>
-              )
-            })}
+              ))}
+            </div>
+          ) : myTasks.length === 0 && myStories.length === 0 ? (
+            <EmptyState
+              icon={<CheckSquare className="h-8 w-8" />}
+              title="Még nincs hozzád rendelt munka"
+              description="A taskok és a hozzád rendelt story-k itt jelennek meg."
+              action={
+                <Link to={ROUTES.PROJECTS}>
+                  <Button variant="outline" size="sm">Projektek böngészése</Button>
+                </Link>
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {myTasks.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Taskok</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {myTasks.slice(0, 6).map((task) => {
+                      const target = task.projectId ? ROUTES.STORY(task.projectId, task.storyId) : null
+                      const content = (
+                        <>
+                          <p className="truncate text-sm font-medium text-gray-800">{task.title}</p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            Task · {minutesToDisplay(task.totalWorklogMinutes ?? 0)}
+                          </p>
+                        </>
+                      )
+                      return target ? (
+                        <Link
+                          key={task.id}
+                          to={target}
+                          className="block rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 hover:border-gray-300 hover:bg-white hover:shadow-sm"
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <div key={task.id} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                          {content}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {myStories.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Story-k</p>
+                  <div className="grid gap-2">
+                    {myStories.slice(0, 5).map((story) => {
+                      const project = projects.find((p) => p.id === story.projectId)
+                      return (
+                        <Link
+                          key={story.id}
+                          to={ROUTES.STORY(story.projectId, story.id)}
+                          className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 hover:border-gray-300 hover:bg-white hover:shadow-sm transition-all"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-0.5 flex items-center gap-2">
+                              {project && (
+                                <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">
+                                  {project.prefix}-{story.sequenceNumber}
+                                </span>
+                              )}
+                              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${TYPE_COLORS[story.type]}`}>
+                                {TYPE_LABELS[story.type]}
+                              </span>
+                            </div>
+                            <p className="truncate text-sm font-medium text-gray-800">{story.title}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_COLORS[story.status]}`}>
+                            {STATUS_LABELS[story.status]}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Saját időráfordításom</h2>
+              <p className="mt-1 text-sm text-gray-500">A legutóbbi worklog bejegyzéseim kompakt nézetben</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPeriodDays(7)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 7 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
+              >
+                7 nap
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPeriodDays(30)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 30 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
+              >
+                30 nap
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPeriodDays(90)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${selectedPeriodDays === 90 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}
+              >
+                90 nap
+              </button>
+            </div>
           </div>
-        )}
-      </section>
+
+          {loadingWorklogs ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 animate-pulse">
+                  <div className="h-3 w-2/3 rounded bg-gray-100" />
+                </div>
+              ))}
+            </div>
+          ) : visibleWorklogs.length === 0 ? (
+            <EmptyState
+              icon={<Clock className="h-8 w-8" />}
+              title="Még nincs worklogod erre az időszakra"
+              description="A storykon vagy taskokon rögzített időráfordítás itt fog megjelenni."
+            />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {visibleWorklogs.slice(0, 8).map((worklog) => {
+                const target = worklog.projectId ? ROUTES.STORY(worklog.projectId, worklog.storyId) : null
+                const content = (
+                  <>
+                    <p className="truncate text-sm font-medium text-gray-800">
+                      {worklog.description?.trim() || 'Worklog bejegyzés'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {worklog.date} · {minutesToDisplay(worklog.minutes)}
+                    </p>
+                  </>
+                )
+
+                return target ? (
+                  <Link
+                    key={worklog.id}
+                    to={target}
+                    className="block rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 hover:border-gray-300 hover:bg-white hover:shadow-sm"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={worklog.id} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    {content}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* Recent projects */}
       {projects.length > 0 && (
