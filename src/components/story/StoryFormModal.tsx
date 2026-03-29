@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Modal, ModalFooter } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -52,6 +52,11 @@ export function StoryFormModal({
   const [estimate, setEstimate] = useState('')
   const [loading, setLoading] = useState(false)
   const [titleError, setTitleError] = useState('')
+
+  // Sync location when modal opens with a different defaultLocation
+  useEffect(() => {
+    if (isOpen) setLocation(defaultLocation)
+  }, [isOpen, defaultLocation])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
