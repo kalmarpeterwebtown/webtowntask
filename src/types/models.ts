@@ -138,6 +138,7 @@ export interface Story {
 
 export interface Task {
   id: string
+  projectId?: string
   storyId: string
   title: string
   description?: string
@@ -230,6 +231,7 @@ export interface DailySnapshot {
 
 export interface Worklog {
   id: string
+  projectId: string
   storyId: string
   taskId?: string
   userId: string
@@ -257,6 +259,7 @@ export interface Notification {
   type: NotificationType
   title: string
   body: string
+  orgId?: string
   entityType: 'story' | 'task' | 'sprint' | 'project'
   entityId: string
   projectId?: string

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { WebtownLogo } from '@/components/branding/WebtownLogo'
 import { createOrganization } from '@/services/organization.service'
 import { useOrgStore } from '@/stores/orgStore'
 import { ROUTES } from '@/config/constants'
@@ -54,12 +55,8 @@ export function OrgSetupPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex items-center justify-center gap-2">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-10 w-10">
-              <rect width="32" height="32" rx="8" fill="#16b632"/>
-              <path d="M5 9L10.5 23L16 12L21.5 23L27 9" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="text-2xl font-extrabold text-white tracking-tight">webtown</span>
+          <div className="mx-auto mb-5 flex justify-center">
+            <WebtownLogo variant="light" className="h-10" />
           </div>
           <h1 className="text-2xl font-bold text-white">Hozd létre a szervezeted</h1>
           <p className="mt-1 text-sm text-white/50">

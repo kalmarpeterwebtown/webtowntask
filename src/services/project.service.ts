@@ -4,11 +4,11 @@ import {
   updateDoc,
   onSnapshot,
   serverTimestamp,
+  Timestamp,
   query,
   orderBy,
-  where,
 } from 'firebase/firestore'
-import { projectsRef, projectRef } from '@/utils/firestore'
+import { projectsRef, projectRef, projectMemberRef } from '@/utils/firestore'
 import type { Project } from '@/types/models'
 import { auth } from '@/config/firebase'
 
@@ -26,6 +26,7 @@ export async function createProject(
   if (!user) throw new Error('Nincs bejelentkezett felhasználó')
 
   const docRef = doc(projectsRef(orgId))
+  const now = Timestamp.now()
   await setDoc(docRef, {
     name: input.name,
     description: input.description ?? '',
@@ -38,10 +39,22 @@ export async function createProject(
       storyTypes: ['feature', 'bug', 'tech_debt', 'chore'],
       priorities: ['critical', 'high', 'medium', 'low'],
     },
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    // Client timestamp keeps the project visible immediately in queries ordered by createdAt.
+    createdAt: now,
+    updatedAt: now,
     createdBy: user.uid,
   })
+
+  await setDoc(projectMemberRef(orgId, docRef.id, user.uid), {
+    userId: user.uid,
+    displayName: user.displayName ?? user.email ?? 'Felhasználó',
+    email: user.email ?? '',
+    photoUrl: user.photoURL ?? null,
+    access: 'manage',
+    role: 'po',
+    joinedAt: serverTimestamp(),
+  })
+
   return docRef.id
 }
 
@@ -66,15 +79,19 @@ export async function archiveProject(orgId: string, projectId: string): Promise<
 export function subscribeToProjects(
   orgId: string,
   callback: (projects: Project[]) => void,
+  onError?: (error: Error) => void,
 ): () => void {
   const q = query(
     projectsRef(orgId),
-    where('status', '!=', 'archived'),
-    orderBy('status'),
     orderBy('createdAt', 'asc'),
   )
   return onSnapshot(q, (snap) => {
-    const projects = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project))
+    const projects = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as Project))
+      .filter((project) => project.status !== 'archived')
     callback(projects)
+  }, (error) => {
+    console.error('subscribeToProjects error:', error)
+    onError?.(error)
   })
 }

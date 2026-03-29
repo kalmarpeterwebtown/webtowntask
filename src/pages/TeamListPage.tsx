@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useOrgStore } from '@/stores/orgStore'
+import { useTeamAccessMap } from '@/hooks/useAccess'
 import { subscribeToTeams, createTeam } from '@/services/team.service'
 import { ROUTES } from '@/config/constants'
 import type { Team } from '@/types/models'
@@ -19,6 +20,11 @@ export function TeamListPage() {
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+
+  const {
+    teams: visibleTeams,
+    loading: accessLoading,
+  } = useTeamAccessMap(teams)
 
   useEffect(() => {
     if (!currentOrg) return
@@ -53,7 +59,7 @@ export function TeamListPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Csapatok</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {loading ? '…' : `${teams.length} csapat`}
+            {loading || accessLoading ? '…' : `${visibleTeams.length} csapat`}
           </p>
         </div>
         <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
@@ -61,24 +67,24 @@ export function TeamListPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {loading || accessLoading ? (
         <div className="space-y-3">
           {[1, 2].map((i) => (
             <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />
           ))}
         </div>
-      ) : teams.length === 0 ? (
+      ) : visibleTeams.length === 0 ? (
         <EmptyState
           icon={<Users className="h-8 w-8" />}
-          title="Még nincs csapat"
-          description="Hozz létre egy csapatot és kapcsold össze projektekkel."
+          title="Nincs látható csapat"
+          description="Még nincs hozzád rendelt csapat, vagy még nem jött létre csapat."
           action={
             <Button onClick={() => setModalOpen(true)}>Csapat létrehozása</Button>
           }
         />
       ) : (
         <div className="space-y-3">
-          {teams.map((team) => (
+          {visibleTeams.map((team) => (
             <Link
               key={team.id}
               to={ROUTES.BOARD(team.id)}

@@ -5,6 +5,8 @@ import { LayoutList, Settings, BarChart2, ArrowRight, FolderKanban } from 'lucid
 import { useOrgStore } from '@/stores/orgStore'
 import { projectRef, storiesRef } from '@/utils/firestore'
 import { ROUTES, STATUS_COLORS, TYPE_COLORS } from '@/config/constants'
+import { useProjects } from '@/hooks/useProjects'
+import { useProjectAccessMap } from '@/hooks/useAccess'
 import type { Project, Story } from '@/types/models'
 import { query, where } from 'firebase/firestore'
 
@@ -50,25 +52,45 @@ function MiniBar({ label, count, total, colorClass }: { label: string; count: nu
 export function ProjectDashboardPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { currentOrg } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
+  const { projects: allProjects } = useProjects()
+  const { projects: visibleProjects, loading: accessLoading } = useProjectAccessMap(allProjects)
   const [project, setProject] = useState<Project | null>(null)
   const [stories, setStories] = useState<Story[]>([])
+  const canAccessProject = visibleProjects.some((visibleProject) => visibleProject.id === projectId)
 
   useEffect(() => {
-    if (!currentOrg || !projectId) return
-    const unsub = onSnapshot(projectRef(currentOrg.id, projectId), (snap) => {
+    if (!orgId || !projectId || !canAccessProject) return
+    const unsub = onSnapshot(projectRef(orgId, projectId), (snap) => {
       if (snap.exists()) setProject({ id: snap.id, ...snap.data() } as Project)
     })
     return unsub
-  }, [currentOrg?.id, projectId])
+  }, [orgId, projectId, canAccessProject])
 
   useEffect(() => {
-    if (!currentOrg || !projectId) return
-    const q = query(storiesRef(currentOrg.id, projectId), where('status', '!=', 'delivered'))
+    if (!orgId || !projectId || !canAccessProject) return
+    const q = query(storiesRef(orgId, projectId), where('status', '!=', 'delivered'))
     const unsub = onSnapshot(q, (snap) => {
       setStories(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Story)))
     })
     return unsub
-  }, [currentOrg?.id, projectId])
+  }, [orgId, projectId, canAccessProject])
+
+  if (accessLoading) {
+    return (
+      <div className="p-6 flex justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!canAccessProject) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500">Ehhez a projekthez jelenleg nincs hozzáférésed.</p>
+      </div>
+    )
+  }
 
   if (!project) {
     return (

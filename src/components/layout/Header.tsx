@@ -1,19 +1,20 @@
-import { Search, Bell, Menu } from 'lucide-react'
+import { Search, Bell, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useUiStore } from '@/stores/uiStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 
 export function Header() {
-  const { toggleSidebar, setSearchOpen, setNotificationPanelOpen } = useUiStore()
+  const { sidebarOpen, toggleSidebar, setSearchOpen, setNotificationPanelOpen } = useUiStore()
   const { unreadCount } = useNotificationStore()
 
   return (
     <header className="flex h-14 items-center gap-2 border-b border-gray-200 bg-white px-4">
-      {/* Mobile: sidebar toggle */}
+      {/* Sidebar toggle */}
       <button
         onClick={toggleSidebar}
-        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden"
+        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+        title={sidebarOpen ? 'Menü bezárása' : 'Menü megnyitása'}
       >
-        <Menu className="h-5 w-5" />
+        {sidebarOpen ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
       </button>
 
       {/* Search */}

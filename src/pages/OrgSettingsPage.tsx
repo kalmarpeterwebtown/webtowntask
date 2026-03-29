@@ -57,7 +57,7 @@ export function OrgSettingsPage() {
     setDefaultEstimateType(currentOrg.settings.defaultEstimateType)
     setClientCommenting(currentOrg.settings.clientCommentingEnabled)
     setEstimateRequired(currentOrg.settings.estimateRequiredForPlanbox)
-  }, [currentOrg?.id])
+  }, [currentOrg])
 
   const handleSave = async () => {
     if (!currentOrg || !name.trim()) return

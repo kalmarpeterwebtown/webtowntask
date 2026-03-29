@@ -3,13 +3,18 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Mail, Lock } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { WebtownLogo } from '@/components/branding/WebtownLogo'
 import { signInWithEmail, signInWithGoogle } from '@/services/auth.service'
 import { ROUTES } from '@/config/constants'
+import { resolvePostAuthRedirect } from '@/utils/authRedirect'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string })?.from ?? ROUTES.DASHBOARD
+  const from = resolvePostAuthRedirect(
+    (location.state as { from?: string } | null)?.from,
+    location.search,
+  )
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -73,11 +78,11 @@ export function LoginPage() {
         )}
 
         <div className="flex items-center justify-end">
-          <Link
-            to={ROUTES.FORGOT_PASSWORD}
-            className="text-sm text-primary-600 hover:underline"
-          >
-            Elfelejtett jelszó?
+        <Link
+          to={`${ROUTES.FORGOT_PASSWORD}${location.search}`}
+          className="text-sm text-primary-600 hover:underline"
+        >
+          Elfelejtett jelszó?
           </Link>
         </div>
 
@@ -114,7 +119,7 @@ export function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Nincs még fiókod?{' '}
-        <Link to={ROUTES.REGISTER} className="text-primary-600 hover:underline font-medium">
+        <Link to={`${ROUTES.REGISTER}${location.search}`} className="text-primary-600 hover:underline font-medium">
           Regisztráció
         </Link>
       </p>
@@ -135,12 +140,8 @@ function AuthShell({
     <div className="flex min-h-screen items-center justify-center bg-navy-800 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex items-center justify-center gap-2">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-10 w-10">
-              <rect width="32" height="32" rx="8" fill="#16b632"/>
-              <path d="M5 9L10.5 23L16 12L21.5 23L27 9" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="text-2xl font-extrabold text-white tracking-tight">webtown</span>
+          <div className="mx-auto mb-5 flex justify-center">
+            <WebtownLogo variant="light" className="h-10" />
           </div>
           <h1 className="text-xl font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-white/50">{subtitle}</p>

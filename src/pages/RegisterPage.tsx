@@ -1,17 +1,21 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Mail, Lock, User } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { AuthShell } from './LoginPage'
 import { registerWithEmail, signInWithGoogle } from '@/services/auth.service'
 import { ROUTES } from '@/config/constants'
+import { resolvePostAuthRedirect } from '@/utils/authRedirect'
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = resolvePostAuthRedirect(undefined, location.search)
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -21,11 +25,15 @@ export function RegisterPage() {
       setError('A jelszónak legalább 8 karakter hosszúnak kell lennie.')
       return
     }
+    if (password !== passwordConfirm) {
+      setError('A két jelszó nem egyezik.')
+      return
+    }
     setError('')
     setLoading(true)
     try {
       await registerWithEmail(email, password, displayName)
-      navigate(ROUTES.DASHBOARD, { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err: unknown) {
       const code = (err as { code?: string }).code
       if (code === 'auth/email-already-in-use') {
@@ -41,7 +49,7 @@ export function RegisterPage() {
   const handleGoogle = async () => {
     try {
       await signInWithGoogle()
-      navigate(ROUTES.DASHBOARD, { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch {
       setError('Google bejelentkezés sikertelen.')
     }
@@ -81,6 +89,16 @@ export function RegisterPage() {
           helper="Legalább 8 karakter"
           autoComplete="new-password"
         />
+        <Input
+          label="Jelszó megerősítése"
+          type="password"
+          value={passwordConfirm}
+          onChange={(e) => setPasswordConfirm(e.target.value)}
+          leftIcon={<Lock className="h-4 w-4" />}
+          placeholder="Írd be újra a jelszót"
+          required
+          autoComplete="new-password"
+        />
 
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
@@ -115,7 +133,7 @@ export function RegisterPage() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Már van fiókod?{' '}
-        <Link to={ROUTES.LOGIN} className="text-primary-600 hover:underline font-medium">
+        <Link to={`${ROUTES.LOGIN}${location.search}`} className="text-primary-600 hover:underline font-medium">
           Bejelentkezés
         </Link>
       </p>

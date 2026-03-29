@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Check, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useOrgStore } from '@/stores/orgStore'
@@ -15,6 +15,7 @@ import type { Team, BoardColumn } from '@/types/models'
 export function TeamSettingsPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { currentOrg } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
   const { projects } = useProjects()
 
   const [team, setTeam] = useState<Team | null>(null)
@@ -23,13 +24,15 @@ export function TeamSettingsPage() {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    if (!currentOrg || !teamId) return
-    const unsub = subscribeToTeam(currentOrg.id, teamId, (t) => {
+    if (!orgId || !teamId) return
+    const unsub = subscribeToTeam(orgId, teamId, (t) => {
       setTeam(t)
-      if (t && !teamName) setTeamName(t.name)
+      if (t) {
+        setTeamName((prev) => prev || t.name)
+      }
     })
     return unsub
-  }, [currentOrg, teamId])
+  }, [orgId, teamId])
 
   const handleSaveName = async () => {
     if (!currentOrg || !teamId || !teamName.trim()) return
@@ -95,6 +98,28 @@ export function TeamSettingsPage() {
       c.id === colId ? { ...c, isDoneColumn: !c.isDoneColumn } : c
     )
     await updateTeamColumns(currentOrg.id, teamId, cols)
+  }
+
+  const handleMoveColumn = async (colId: string, direction: 'left' | 'right') => {
+    if (!currentOrg || !teamId || !team) return
+
+    const sorted = [...team.boardConfig.columns].sort((a, b) => a.order.localeCompare(b.order))
+    const index = sorted.findIndex((column) => column.id === colId)
+    if (index < 0) return
+
+    const targetIndex = direction === 'left' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= sorted.length) return
+
+    const reordered = [...sorted]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(targetIndex, 0, moved)
+
+    const normalized = reordered.map((column, itemIndex) => ({
+      ...column,
+      order: `a${String(itemIndex).padStart(2, '0')}`,
+    }))
+
+    await updateTeamColumns(currentOrg.id, teamId, normalized)
   }
 
   if (!team) {
@@ -166,6 +191,9 @@ export function TeamSettingsPage() {
                   <div className="flex-1 text-left">
                     <p className="font-medium">{project.name}</p>
                     <p className="text-xs text-gray-400">{project.storyCount ?? 0} story</p>
+                    <span className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[11px] text-primary-600">
+                      Backlog megnyitása: {project.prefix}
+                    </span>
                   </div>
                   {connected && <Check className="h-4 w-4 shrink-0 text-primary-600" />}
                 </button>
@@ -190,6 +218,9 @@ export function TeamSettingsPage() {
         <div className="space-y-2">
           {columns.map((col) => (
             <div key={col.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+              <div className="flex items-center gap-1 text-gray-300">
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+              </div>
               <div
                 className="h-3 w-3 rounded-full shrink-0 border border-gray-300"
                 style={{ backgroundColor: col.color ?? '#6B7280' }}
@@ -208,6 +239,24 @@ export function TeamSettingsPage() {
                 />
                 Done
               </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleMoveColumn(col.id, 'left')}
+                  className="rounded p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500"
+                  title="Mozgatás balra"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMoveColumn(col.id, 'right')}
+                  className="rounded p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500"
+                  title="Mozgatás jobbra"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <button
                 onClick={() => handleDeleteColumn(col.id)}
                 className="text-gray-300 hover:text-red-500 transition-colors"

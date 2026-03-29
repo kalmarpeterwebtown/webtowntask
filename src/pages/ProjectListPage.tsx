@@ -5,9 +5,16 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { ProjectCard } from '@/components/project/ProjectCard'
 import { ProjectFormModal } from '@/components/project/ProjectFormModal'
 import { useProjects } from '@/hooks/useProjects'
+import { useProjectAccessMap } from '@/hooks/useAccess'
+import { useOrgStore } from '@/stores/orgStore'
 
 export function ProjectListPage() {
-  const { projects, loading } = useProjects()
+  const { currentOrg, loading: orgLoading } = useOrgStore()
+  const { projects: allProjects, loading, error } = useProjects()
+  const {
+    projects,
+    loading: accessLoading,
+  } = useProjectAccessMap(allProjects)
   const [showForm, setShowForm] = useState(false)
 
   return (
@@ -28,8 +35,20 @@ export function ProjectListPage() {
         </Button>
       </div>
 
+      {!currentOrg && orgLoading && (
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+          Szervezet betöltése...
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {error}
+        </div>
+      )}
+
       {/* Tartalom */}
-      {loading ? (
+      {loading || accessLoading ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-28 rounded-xl bg-gray-100 animate-pulse" />
@@ -38,8 +57,8 @@ export function ProjectListPage() {
       ) : projects.length === 0 ? (
         <EmptyState
           icon={<FolderOpen className="h-8 w-8" />}
-          title="Még nincs projekt"
-          description="Hozd létre az első projektedet és kezdj el story-kat felvenni."
+          title="Nincs látható projekt"
+          description="Még nincs hozzád rendelt projekt, vagy még nem készült el egyetlen projekt sem."
           action={
             <Button
               icon={<Plus className="h-4 w-4" />}

@@ -145,14 +145,19 @@ export async function moveStoryOffBoard(
   })
 }
 
+type UpdateStoryInput = Partial<Pick<Story,
+  'title' | 'description' | 'type' | 'priority' | 'status' |
+  'tagIds' | 'topicId' | 'sprintId' | 'assigneeIds' | 'assigneeNames'
+>> & {
+  estimate?: number | null
+  dueDate?: Story['dueDate'] | null
+}
+
 export async function updateStory(
   orgId: string,
   projectId: string,
   storyId: string,
-  data: Partial<Pick<Story,
-    'title' | 'description' | 'type' | 'priority' | 'status' |
-    'estimate' | 'dueDate' | 'tagIds' | 'topicId' | 'sprintId'
-  >>,
+  data: UpdateStoryInput,
 ): Promise<void> {
   await updateDoc(storyRef(orgId, projectId, storyId), {
     ...data,

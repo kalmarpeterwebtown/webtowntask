@@ -14,6 +14,7 @@ export async function createComment(
   projectId: string,
   storyId: string,
   body: string,
+  mentions: string[] = [],
 ): Promise<string> {
   const user = auth.currentUser
   if (!user) throw new Error('Nincs bejelentkezett felhasználó')
@@ -25,7 +26,7 @@ export async function createComment(
     authorName: user.displayName ?? user.email ?? 'Ismeretlen',
     authorPhotoUrl: user.photoURL ?? null,
     body,
-    mentions: [],
+    mentions,
     isEdited: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

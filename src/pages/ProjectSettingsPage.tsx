@@ -21,6 +21,7 @@ const ALL_STORY_TYPES: { value: StoryType; label: string }[] = [
 export function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { currentOrg } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
   const [project, setProject] = useState<Project | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -31,8 +32,8 @@ export function ProjectSettingsPage() {
   const [archiving, setArchiving] = useState(false)
 
   useEffect(() => {
-    if (!currentOrg || !projectId) return
-    const unsub = onSnapshot(projectRef(currentOrg.id, projectId), (snap) => {
+    if (!orgId || !projectId) return
+    const unsub = onSnapshot(projectRef(orgId, projectId), (snap) => {
       if (snap.exists()) {
         const p = { id: snap.id, ...snap.data() } as Project
         setProject(p)
@@ -43,7 +44,7 @@ export function ProjectSettingsPage() {
       }
     })
     return unsub
-  }, [currentOrg?.id, projectId])
+  }, [orgId, projectId])
 
   const handleSave = async () => {
     if (!currentOrg || !projectId || !name.trim()) return

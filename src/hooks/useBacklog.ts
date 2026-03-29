@@ -10,19 +10,25 @@ export type BacklogGroups = {
   backlog: Story[]
 }
 
-export function useBacklog(projectId: string) {
+export function useBacklog(projectId: string, enabled = true) {
   const { currentOrg } = useOrgStore()
-  const [groups, setGroups] = useState<BacklogGroups>({ board: [], planbox: [], backlog: [] })
-  const [loading, setLoading] = useState(true)
+  const orgId = currentOrg?.id ?? null
+  const [snapshot, setSnapshot] = useState<{
+    orgId: string | null
+    projectId: string
+    groups: BacklogGroups
+    ready: boolean
+  }>({
+    orgId: null,
+    projectId: '',
+    groups: { board: [], planbox: [], backlog: [] },
+    ready: false,
+  })
 
   useEffect(() => {
-    if (!currentOrg || !projectId) {
-      setLoading(false)
-      return
-    }
+    if (!enabled || !orgId || !projectId) return
 
-    setLoading(true)
-    const unsub = subscribeToBacklog(currentOrg.id, projectId, (stories) => {
+    const unsub = subscribeToBacklog(orgId, projectId, (stories) => {
       const result: BacklogGroups = { board: [], planbox: [], backlog: [] }
       for (const story of stories) {
         const loc = story.location as StoryLocation
@@ -36,12 +42,25 @@ export function useBacklog(projectId: string) {
       result.backlog.sort((a, b) => cmp(a.backlogOrder, b.backlogOrder))
       result.planbox.sort((a, b) => cmp(a.planboxOrder, b.planboxOrder))
       result.board.sort((a, b) => cmp(a.columnOrder, b.columnOrder))
-      setGroups(result)
-      setLoading(false)
+      setSnapshot({
+        orgId,
+        projectId,
+        groups: result,
+        ready: true,
+      })
     })
 
     return unsub
-  }, [currentOrg?.id, projectId])
+  }, [enabled, orgId, projectId])
 
-  return { groups, loading }
+  return {
+    groups: enabled && snapshot.orgId === orgId && snapshot.projectId === projectId
+      ? snapshot.groups
+      : { board: [], planbox: [], backlog: [] },
+    loading: enabled && !!orgId && !!projectId && (
+      snapshot.orgId !== orgId ||
+      snapshot.projectId !== projectId ||
+      !snapshot.ready
+    ),
+  }
 }

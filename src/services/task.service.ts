@@ -26,6 +26,7 @@ export async function createTask(
   const order = afterOrder ? keyAfter(afterOrder) : initialKey()
 
   const ref = await addDoc(tasksRef(orgId, projectId, storyId), {
+    projectId,
     storyId,
     title,
     description: '',
@@ -66,6 +67,33 @@ export async function updateTaskTitle(
 ): Promise<void> {
   await updateDoc(doc(tasksRef(orgId, projectId, storyId), taskId), {
     title,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateTaskDescription(
+  orgId: string,
+  projectId: string,
+  storyId: string,
+  taskId: string,
+  description: string,
+): Promise<void> {
+  await updateDoc(doc(tasksRef(orgId, projectId, storyId), taskId), {
+    description,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateTaskAssignee(
+  orgId: string,
+  projectId: string,
+  storyId: string,
+  taskId: string,
+  assignee: { id: string; name: string } | null,
+): Promise<void> {
+  await updateDoc(doc(tasksRef(orgId, projectId, storyId), taskId), {
+    assigneeId: assignee?.id ?? null,
+    assigneeName: assignee?.name ?? null,
     updatedAt: serverTimestamp(),
   })
 }

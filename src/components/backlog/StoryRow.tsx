@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GripVertical, Layout, X } from 'lucide-react'
+import { Check, GripVertical, Layout, PencilLine, X } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { clsx } from 'clsx'
@@ -27,21 +27,28 @@ const PRIORITY_LABELS: Record<string, string> = {
 interface StoryRowProps {
   story: Story
   projectId: string
+  readOnly?: boolean
   tagMap?: Map<string, Tag>
   isTagDragging?: boolean
   isTagDropTarget?: boolean
+  onEstimateSave?: (storyId: string, estimate: number | null) => Promise<void>
 }
 
 export function StoryRow({
   story,
   projectId,
+  readOnly = false,
   tagMap,
   isTagDragging = false,
   isTagDropTarget = false,
+  onEstimateSave,
 }: StoryRowProps) {
   const navigate = useNavigate()
   const { currentOrg } = useOrgStore()
   const [moveToBoardOpen, setMoveToBoardOpen] = useState(false)
+  const [editingEstimate, setEditingEstimate] = useState(false)
+  const [estimateInput, setEstimateInput] = useState('')
+  const [savingEstimate, setSavingEstimate] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: story.id })
@@ -55,10 +62,32 @@ export function StoryRow({
     ? story.tagIds.map((id) => tagMap.get(id)).filter(Boolean) as Tag[]
     : []
 
+  useEffect(() => {
+    setEstimateInput(story.estimate != null ? String(story.estimate) : '')
+  }, [story.estimate])
+
   const handleRemoveTag = async (e: React.MouseEvent, tagId: string) => {
     e.stopPropagation()
     if (!currentOrg) return
     await removeTagFromStory(currentOrg.id, projectId, story.id, tagId)
+  }
+
+  const handleEstimateSubmit = async (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation()
+    if (!onEstimateSave) return
+
+    setSavingEstimate(true)
+    try {
+      const trimmed = estimateInput.trim()
+      const parsedEstimate = trimmed === '' ? null : Number(trimmed)
+      await onEstimateSave(
+        story.id,
+        parsedEstimate != null && !Number.isNaN(parsedEstimate) ? parsedEstimate : null,
+      )
+      setEditingEstimate(false)
+    } finally {
+      setSavingEstimate(false)
+    }
   }
 
   return (
@@ -79,15 +108,17 @@ export function StoryRow({
     >
       <div className="flex items-center gap-3">
         {/* Drag handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Húzás a rendezéshez"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {!readOnly && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Húzás a rendezéshez"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Típus badge */}
         <span className={clsx(
@@ -115,6 +146,60 @@ export function StoryRow({
           {PRIORITY_LABELS[story.priority] ?? story.priority}
         </span>
 
+        {/* Estimate */}
+        {editingEstimate && !readOnly ? (
+          <div
+            className="flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="number"
+              min={0}
+              value={estimateInput}
+              autoFocus
+              onChange={(e) => setEstimateInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleEstimateSubmit(e)
+                if (e.key === 'Escape') {
+                  e.stopPropagation()
+                  setEditingEstimate(false)
+                  setEstimateInput(story.estimate != null ? String(story.estimate) : '')
+                }
+              }}
+              className="w-16 rounded-md border border-primary-200 px-2 py-1 text-right text-xs font-semibold text-gray-700 outline-none focus:border-primary-500"
+              placeholder="SP"
+            />
+            <button
+              type="button"
+              onClick={(e) => void handleEstimateSubmit(e)}
+              disabled={savingEstimate}
+              className="rounded-full bg-primary-50 p-1 text-primary-600 transition-colors hover:bg-primary-100 disabled:opacity-50"
+              title="Pont mentése"
+            >
+              <Check className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={readOnly || !onEstimateSave}
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditingEstimate(true)
+            }}
+            className={clsx(
+              'shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold transition-colors',
+              story.estimate != null ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-400',
+              !readOnly && onEstimateSave && 'hover:bg-primary-50 hover:text-primary-700',
+              (readOnly || !onEstimateSave) && 'cursor-default',
+            )}
+            title={readOnly ? 'Story pontszám' : 'Pontozás szerkesztése'}
+          >
+            <span>{story.estimate != null ? `${story.estimate} SP` : 'Pontozás'}</span>
+            {!readOnly && onEstimateSave && <PencilLine className="h-3 w-3" />}
+          </button>
+        )}
+
         {/* Assignee initials */}
         {story.assigneeNames.length > 0 && (
           <div className="shrink-0 flex -space-x-1">
@@ -131,7 +216,7 @@ export function StoryRow({
         )}
 
         {/* Move to board button (planbox only) */}
-        {story.location === 'planbox' && (
+        {story.location === 'planbox' && !readOnly && (
           <button
             onClick={(e) => { e.stopPropagation(); setMoveToBoardOpen(true) }}
             className="shrink-0 hidden group-hover:flex items-center gap-1 rounded-full bg-primary-50 px-2 py-1 text-xs text-primary-600 hover:bg-primary-100 transition-colors"
@@ -153,13 +238,15 @@ export function StoryRow({
               style={{ backgroundColor: tag.color }}
             >
               {tag.name}
-              <button
-                onClick={(e) => handleRemoveTag(e, tag.id)}
-                className="opacity-70 hover:opacity-100 transition-opacity"
-                title="Tag eltávolítása"
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
+              {!readOnly && (
+                <button
+                  onClick={(e) => handleRemoveTag(e, tag.id)}
+                  className="opacity-70 hover:opacity-100 transition-opacity"
+                  title="Tag eltávolítása"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
             </span>
           ))}
         </div>

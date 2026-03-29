@@ -1,9 +1,10 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
 import { ROUTES } from '@/config/constants'
 
 export function AuthGuard() {
+  const location = useLocation()
   const { firebaseUser, initialized, loading } = useAuthStore()
 
   if (!initialized || loading) {
@@ -18,7 +19,8 @@ export function AuthGuard() {
   }
 
   if (!firebaseUser) {
-    return <Navigate to={ROUTES.LOGIN} replace />
+    const from = `${location.pathname}${location.search}`
+    return <Navigate to={ROUTES.LOGIN} replace state={{ from }} />
   }
 
   return <Outlet />
@@ -27,9 +29,11 @@ export function AuthGuard() {
 /** Bejelentkezett, de még nincs szervezete — átirányítja az onboarding oldalra */
 export function OrgGuard() {
   const { initialized, loading } = useAuthStore()
-  const { currentOrg, loading: orgLoading } = useOrgStore()
+  const { currentOrg, memberships, membershipsLoaded, loading: orgLoading } = useOrgStore()
 
-  if (!initialized || loading || orgLoading) {
+  const waitingForOrgResolution = membershipsLoaded && memberships.length > 0 && !currentOrg
+
+  if (!initialized || loading || orgLoading || !membershipsLoaded || waitingForOrgResolution) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">

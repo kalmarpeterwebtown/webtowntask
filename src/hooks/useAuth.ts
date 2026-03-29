@@ -4,28 +4,85 @@ import { onSnapshot, doc } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
-import { userRef, orgRef } from '@/utils/firestore'
-import type { User, Organization } from '@/types/models'
+import { userRef, orgRef, orgMembershipsRef } from '@/utils/firestore'
+import type { User, Organization, OrgMembership } from '@/types/models'
 import type { OrgRole } from '@/types/enums'
 import type { AuthClaims } from '@/stores/authStore'
 
 export function useAuthInit() {
   const { setFirebaseUser, setUserProfile, setClaims, setLoading, setInitialized } = useAuthStore()
-  const { setCurrentOrg, setOrgRole, setLoading: setOrgLoading } = useOrgStore()
+  const {
+    setCurrentOrg,
+    setMemberships,
+    setMembershipsLoaded,
+    setOrgRole,
+    setLoading: setOrgLoading,
+  } = useOrgStore()
 
   useEffect(() => {
+    let unsubUser: (() => void) | undefined
+    let unsubOrgMemberships: (() => void) | undefined
     let unsubOrg: (() => void) | undefined
+    let unsubMember: (() => void) | undefined
+    let activeOrgId: string | null = null
+    let orgMemberships: OrgMembership[] = []
+
+    const cleanupOrgSubscriptions = () => {
+      unsubOrg?.()
+      unsubMember?.()
+      unsubOrg = undefined
+      unsubMember = undefined
+      activeOrgId = null
+    }
+
+    const activateOrg = (resolvedOrgId: string, firebaseUserId: string) => {
+      if (activeOrgId === resolvedOrgId) return
+
+      cleanupOrgSubscriptions()
+      activeOrgId = resolvedOrgId
+      setOrgLoading(true)
+
+      unsubOrg = onSnapshot(orgRef(resolvedOrgId), (orgSnap) => {
+        if (orgSnap.exists()) {
+          setCurrentOrg({ id: orgSnap.id, ...orgSnap.data() } as Organization)
+        } else {
+          setCurrentOrg(null)
+        }
+        setOrgLoading(false)
+      })
+
+      const memberRef = doc(db, 'organizations', resolvedOrgId, 'members', firebaseUserId)
+      unsubMember = onSnapshot(memberRef, (memberSnap) => {
+        if (memberSnap.exists()) {
+          setOrgRole(memberSnap.data().role as OrgRole)
+        } else {
+          setOrgRole(null)
+        }
+      })
+    }
+
+    const cleanupAllSubscriptions = () => {
+      unsubUser?.()
+      unsubUser = undefined
+      unsubOrgMemberships?.()
+      unsubOrgMemberships = undefined
+      cleanupOrgSubscriptions()
+    }
 
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      cleanupAllSubscriptions()
       setFirebaseUser(firebaseUser)
 
       if (!firebaseUser) {
         setUserProfile(null)
         setClaims({})
+        setMemberships([])
+        setMembershipsLoaded(false)
         setCurrentOrg(null)
+        setOrgRole(null)
+        setOrgLoading(false)
         setLoading(false)
         setInitialized(true)
-        unsubOrg?.()
         return
       }
 
@@ -37,53 +94,65 @@ export function useAuthInit() {
       }
       setClaims(claims)
 
+      unsubOrgMemberships = onSnapshot(
+        orgMembershipsRef(firebaseUser.uid),
+        { includeMetadataChanges: true },
+        (snap) => {
+          const waitingForServerConfirmation = snap.metadata.fromCache && snap.empty
+          if (waitingForServerConfirmation) {
+            return
+          }
+
+          orgMemberships = snap.docs.map((membershipDoc) => ({
+            id: membershipDoc.id,
+            ...membershipDoc.data(),
+          } as OrgMembership))
+          setMemberships(orgMemberships)
+          setMembershipsLoaded(true)
+          if (!activeOrgId && orgMemberships[0]?.id) {
+            activateOrg(orgMemberships[0].id, firebaseUser.uid)
+          }
+        },
+        (error) => {
+          console.error('orgMemberships subscription failed:', error)
+          setMemberships([])
+          setMembershipsLoaded(true)
+        },
+      )
+
       // User profil realtime figyelés
-      const unsubUser = onSnapshot(userRef(firebaseUser.uid), (snap) => {
+      unsubUser = onSnapshot(userRef(firebaseUser.uid), (snap) => {
         if (snap.exists()) {
           const profileData = { id: snap.id, ...snap.data() } as User
           setUserProfile(profileData)
 
-          // Org betöltése: custom claim → user profil currentOrgId fallback
-          const resolvedOrgId = claims.orgId ?? profileData.currentOrgId
-          if (resolvedOrgId && !unsubOrg) {
-            setOrgLoading(true)
-            unsubOrg = onSnapshot(orgRef(resolvedOrgId), (orgSnap) => {
-              if (orgSnap.exists()) {
-                setCurrentOrg({ id: orgSnap.id, ...orgSnap.data() } as Organization)
-              } else {
-                setCurrentOrg(null)
-              }
-              setOrgLoading(false)
-            })
-
-            // Load user's role from Firestore member doc (no Cloud Functions needed)
-            const memberRef = doc(db, 'organizations', resolvedOrgId, 'members', firebaseUser.uid)
-            onSnapshot(memberRef, (snap) => {
-              if (snap.exists()) {
-                setOrgRole(snap.data().role as OrgRole)
-              } else {
-                setOrgRole(null)
-              }
-            })
+          // Org betöltése: custom claim → user profil currentOrgId → memberships fallback
+          const resolvedOrgId = claims.orgId ?? profileData.currentOrgId ?? orgMemberships[0]?.id
+          if (resolvedOrgId) {
+            activateOrg(resolvedOrgId, firebaseUser.uid)
           } else if (!resolvedOrgId) {
+            cleanupOrgSubscriptions()
             setCurrentOrg(null)
             setOrgRole(null)
             setOrgLoading(false)
           }
+        } else {
+          setUserProfile(null)
+          setMemberships([])
+          setMembershipsLoaded(false)
+          cleanupOrgSubscriptions()
+          setCurrentOrg(null)
+          setOrgRole(null)
+          setOrgLoading(false)
         }
         setLoading(false)
         setInitialized(true)
       })
-
-      return () => {
-        unsubUser()
-        unsubOrg?.()
-      }
     })
 
     return () => {
+      cleanupAllSubscriptions()
       unsubAuth()
-      unsubOrg?.()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

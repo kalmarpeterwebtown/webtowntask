@@ -20,6 +20,9 @@ export const projectRef = (orgId: string, projectId: string) =>
 export const projectMembersRef = (orgId: string, projectId: string) =>
   collection(db, 'organizations', orgId, 'projects', projectId, 'memberships')
 
+export const projectMemberRef = (orgId: string, projectId: string, userId: string) =>
+  doc(db, 'organizations', orgId, 'projects', projectId, 'memberships', userId)
+
 export const storiesRef = (orgId: string, projectId: string) =>
   collection(db, 'organizations', orgId, 'projects', projectId, 'stories')
 
@@ -62,6 +65,9 @@ export const teamRef = (orgId: string, teamId: string) =>
 export const teamMembersRef = (orgId: string, teamId: string) =>
   collection(db, 'organizations', orgId, 'teams', teamId, 'memberships')
 
+export const teamMemberRef = (orgId: string, teamId: string, userId: string) =>
+  doc(db, 'organizations', orgId, 'teams', teamId, 'memberships', userId)
+
 export const sprintsRef = (orgId: string, teamId: string) =>
   collection(db, 'organizations', orgId, 'teams', teamId, 'sprints')
 
@@ -79,3 +85,6 @@ export const orgMembershipsRef = (userId: string) =>
 
 export const notificationsRef = (userId: string) =>
   collection(db, 'users', userId, 'notifications')
+
+export const notificationRef = (userId: string, notificationId: string) =>
+  doc(db, 'users', userId, 'notifications', notificationId)

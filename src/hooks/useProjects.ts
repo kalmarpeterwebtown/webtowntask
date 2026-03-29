@@ -4,25 +4,49 @@ import { subscribeToProjects } from '@/services/project.service'
 import type { Project } from '@/types/models'
 
 export function useProjects() {
-  const { currentOrg } = useOrgStore()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
+  const { currentOrg, loading: orgLoading } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
+  const [snapshot, setSnapshot] = useState<{
+    orgId: string | null
+    projects: Project[]
+    ready: boolean
+    error: string | null
+  }>({
+    orgId: null,
+    projects: [],
+    ready: false,
+    error: null,
+  })
 
   useEffect(() => {
-    if (!currentOrg) {
-      setProjects([])
-      setLoading(false)
-      return
-    }
+    if (!orgId) return
 
-    setLoading(true)
-    const unsub = subscribeToProjects(currentOrg.id, (data) => {
-      setProjects(data)
-      setLoading(false)
-    })
+    const unsub = subscribeToProjects(
+      orgId,
+      (data) => {
+        setSnapshot({
+          orgId,
+          projects: data,
+          ready: true,
+          error: null,
+        })
+      },
+      () => {
+        setSnapshot({
+          orgId,
+          projects: [],
+          ready: true,
+          error: 'A projektek betöltése átmenetileg nem sikerült.',
+        })
+      },
+    )
 
     return unsub
-  }, [currentOrg?.id])
+  }, [orgId])
 
-  return { projects, loading }
+  return {
+    projects: snapshot.orgId === orgId ? snapshot.projects : [],
+    loading: orgLoading || (orgId !== null && (snapshot.orgId !== orgId || !snapshot.ready)),
+    error: snapshot.orgId === orgId ? snapshot.error : null,
+  }
 }

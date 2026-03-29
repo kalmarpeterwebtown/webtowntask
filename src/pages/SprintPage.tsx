@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Play, CheckSquare, Calendar, Flag, X } from 'lucide-react'
+import { ArrowLeft, Plus, Play, CheckSquare, Calendar, Flag, PencilLine, X } from 'lucide-react'
 import {
   onSnapshot, query, orderBy, addDoc, updateDoc, doc, serverTimestamp, where,
 } from 'firebase/firestore'
@@ -30,6 +30,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
 export function SprintPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { currentOrg } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
   const [team, setTeam] = useState<Team | null>(null)
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [sprintStories, setSprintStories] = useState<Record<string, Story[]>>({})
@@ -40,30 +41,33 @@ export function SprintPage() {
   const [newEnd, setNewEnd] = useState('')
   const [creating, setCreating] = useState(false)
   const [expandedSprint, setExpandedSprint] = useState<string | null>(null)
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
+  const [editStart, setEditStart] = useState('')
+  const [editEnd, setEditEnd] = useState('')
 
   useEffect(() => {
-    if (!currentOrg || !teamId) return
-    return subscribeToTeam(currentOrg.id, teamId, setTeam)
-  }, [currentOrg?.id, teamId])
+    if (!orgId || !teamId) return
+    return subscribeToTeam(orgId, teamId, setTeam)
+  }, [orgId, teamId])
 
   useEffect(() => {
-    if (!currentOrg || !teamId) return
-    const q = query(sprintsRef(currentOrg.id, teamId), orderBy('createdAt', 'desc'))
+    if (!orgId || !teamId) return
+    const q = query(sprintsRef(orgId, teamId), orderBy('createdAt', 'desc'))
     return onSnapshot(q, (snap) => {
       setSprints(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Sprint)))
     })
-  }, [currentOrg?.id, teamId])
+  }, [orgId, teamId])
 
   // Load stories for expanded sprint
   useEffect(() => {
-    if (!currentOrg || !expandedSprint || !team) return
+    if (!orgId || !expandedSprint || !team) return
     if (team.connectedProjectIds.length === 0) return
 
     const unsubs: Array<() => void> = []
     const map: Record<string, Story[]> = { [expandedSprint]: [] }
 
     for (const projectId of team.connectedProjectIds) {
-      const q = query(storiesRef(currentOrg.id, projectId), where('sprintId', '==', expandedSprint))
+      const q = query(storiesRef(orgId, projectId), where('sprintId', '==', expandedSprint))
       const unsub = onSnapshot(q, (snap) => {
         const existing = map[expandedSprint] ?? []
         map[expandedSprint] = [
@@ -75,7 +79,7 @@ export function SprintPage() {
       unsubs.push(unsub)
     }
     return () => unsubs.forEach((u) => u())
-  }, [currentOrg?.id, expandedSprint, team])
+  }, [orgId, expandedSprint, team])
 
   const handleCreate = async () => {
     if (!currentOrg || !teamId || !newName.trim() || !newStart || !newEnd) return
@@ -127,6 +131,23 @@ export function SprintPage() {
     })
   }
 
+  const handleOpenEditSprint = (sprint: Sprint) => {
+    const start = (sprint.startDate as { toDate?: () => Date })?.toDate?.()
+    const end = (sprint.endDate as { toDate?: () => Date })?.toDate?.()
+    setEditingSprint(sprint)
+    setEditStart(start ? start.toISOString().slice(0, 10) : '')
+    setEditEnd(end ? end.toISOString().slice(0, 10) : '')
+  }
+
+  const handleSaveSprintDates = async () => {
+    if (!currentOrg || !teamId || !editingSprint || !editStart || !editEnd) return
+    await updateDoc(doc(db, 'organizations', currentOrg.id, 'teams', teamId, 'sprints', editingSprint.id), {
+      startDate: new Date(editStart),
+      endDate: new Date(editEnd),
+    })
+    setEditingSprint(null)
+  }
+
   if (!team) {
     return (
       <div className="p-6 flex justify-center">
@@ -168,6 +189,7 @@ export function SprintPage() {
             expanded={expandedSprint === activeSprint.id}
             onToggle={() => setExpandedSprint(expandedSprint === activeSprint.id ? null : activeSprint.id)}
             onComplete={() => handleCompleteSprint(activeSprint.id)}
+            onEdit={() => handleOpenEditSprint(activeSprint)}
             showComplete
           />
         </section>
@@ -185,6 +207,7 @@ export function SprintPage() {
                 expanded={expandedSprint === s.id}
                 onToggle={() => setExpandedSprint(expandedSprint === s.id ? null : s.id)}
                 onStart={!activeSprint ? () => handleStartSprint(s.id) : undefined}
+                onEdit={() => handleOpenEditSprint(s)}
               />
             ))}
           </div>
@@ -202,6 +225,7 @@ export function SprintPage() {
                 stories={sprintStories[s.id] ?? []}
                 expanded={expandedSprint === s.id}
                 onToggle={() => setExpandedSprint(expandedSprint === s.id ? null : s.id)}
+                onEdit={() => handleOpenEditSprint(s)}
               />
             ))}
           </div>
@@ -256,6 +280,29 @@ export function SprintPage() {
           </div>
         </div>
       </Modal>
+
+      <Modal isOpen={editingSprint !== null} onClose={() => setEditingSprint(null)} title="Sprint időszak szerkesztése">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block mb-1 text-xs font-medium text-gray-600">Kezdés</label>
+              <Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+            </div>
+            <div>
+              <label className="block mb-1 text-xs font-medium text-gray-600">Befejezés</label>
+              <Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditingSprint(null)}>
+              Mégse
+            </Button>
+            <Button className="flex-1" onClick={handleSaveSprintDates} disabled={!editStart || !editEnd}>
+              Mentés
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -267,6 +314,7 @@ function SprintCard({
   onToggle,
   onStart,
   onComplete,
+  onEdit,
   showComplete,
 }: {
   sprint: Sprint
@@ -275,6 +323,7 @@ function SprintCard({
   onToggle: () => void
   onStart?: () => void
   onComplete?: () => void
+  onEdit?: () => void
   showComplete?: boolean
 }) {
   const done = stories.filter((s) => s.status === 'done' || s.status === 'delivered').length
@@ -319,6 +368,11 @@ function SprintCard({
         {showComplete && onComplete && (
           <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); onComplete() }}>
             Befejezés
+          </Button>
+        )}
+        {onEdit && (
+          <Button size="sm" variant="ghost" icon={<PencilLine className="h-3.5 w-3.5" />} onClick={(e) => { e.stopPropagation(); onEdit() }}>
+            Időszak
           </Button>
         )}
       </button>

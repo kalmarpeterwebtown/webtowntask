@@ -3,6 +3,7 @@ import { Layout } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useOrgStore } from '@/stores/orgStore'
+import { useTeamAccessMap } from '@/hooks/useAccess'
 import { subscribeToTeams } from '@/services/team.service'
 import { moveStoryToBoard } from '@/services/story.service'
 import { initialKey } from '@/utils/fractionalIndex'
@@ -16,23 +17,34 @@ interface Props {
 
 export function MoveToBoardModal({ story, isOpen, onClose }: Props) {
   const { currentOrg } = useOrgStore()
+  const orgId = currentOrg?.id ?? null
   const [teams, setTeams] = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [selectedColumnId, setSelectedColumnId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { teams: visibleTeams } = useTeamAccessMap(teams)
 
   useEffect(() => {
-    if (!currentOrg || !isOpen) return
-    const unsub = subscribeToTeams(currentOrg.id, (t) => {
+    if (!orgId || !isOpen) return
+    const unsub = subscribeToTeams(orgId, (t) => {
       setTeams(t)
-      if (t.length > 0 && !selectedTeam) {
-        setSelectedTeam(t[0])
-        setSelectedColumnId(t[0].boardConfig.columns[0]?.id ?? '')
-      }
     })
     return unsub
-  }, [currentOrg, isOpen])
+  }, [orgId, isOpen])
+
+  useEffect(() => {
+    if (visibleTeams.length === 0) {
+      setSelectedTeam(null)
+      setSelectedColumnId('')
+      return
+    }
+
+    if (!selectedTeam || !visibleTeams.some((team) => team.id === selectedTeam.id)) {
+      setSelectedTeam(visibleTeams[0])
+      setSelectedColumnId(visibleTeams[0].boardConfig.columns[0]?.id ?? '')
+    }
+  }, [visibleTeams, selectedTeam])
 
   useEffect(() => {
     if (selectedTeam) {
@@ -73,7 +85,7 @@ export function MoveToBoardModal({ story, isOpen, onClose }: Props) {
           Válassz csapatot és oszlopot a <span className="font-medium text-gray-700">"{story.title}"</span> story-hoz.
         </p>
 
-        {teams.length === 0 ? (
+        {visibleTeams.length === 0 ? (
           <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
             Nincs még csapat. Előbb hozz létre egyet a Csapatok menüpontban.
           </p>
@@ -82,7 +94,7 @@ export function MoveToBoardModal({ story, isOpen, onClose }: Props) {
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-700">Csapat</label>
               <div className="space-y-1">
-                {teams.map((team) => (
+                {visibleTeams.map((team) => (
                   <button
                     key={team.id}
                     onClick={() => setSelectedTeam(team)}
@@ -133,7 +145,7 @@ export function MoveToBoardModal({ story, isOpen, onClose }: Props) {
           <Button
             onClick={handleMove}
             loading={loading}
-            disabled={!selectedTeam || !selectedColumnId || teams.length === 0}
+            disabled={!selectedTeam || !selectedColumnId || visibleTeams.length === 0}
           >
             Áthelyezés
           </Button>

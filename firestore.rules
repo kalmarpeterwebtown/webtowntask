@@ -18,6 +18,25 @@ service cloud.firestore {
           in ['owner', 'admin'];
     }
 
+    function invitationMatchesUser(orgDocId, inviteId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(inviteId)).data.email == request.auth.token.email;
+    }
+
+    function invitationIsPending(orgDocId, inviteId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(inviteId)) &&
+        get(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(inviteId)).data.status == 'pending';
+    }
+
+    function isValidMentionNotification(targetUserId) {
+      return isSignedIn() &&
+        request.resource.data.type == 'mentioned' &&
+        request.resource.data.actorId == uid() &&
+        request.resource.data.orgId is string &&
+        exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(uid())) &&
+        exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(targetUserId));
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       // Allow any signed-in user to read profiles (for assignee display)
@@ -27,10 +46,12 @@ service cloud.firestore {
       allow delete: if false;
 
       match /notifications/{notifId} {
-        allow read, write: if isSignedIn() && uid() == userId;
+        allow read: if isSignedIn() && uid() == userId;
+        allow create: if (isSignedIn() && uid() == userId) || isValidMentionNotification(userId);
+        allow update, delete: if isSignedIn() && uid() == userId;
       }
 
-      match /memberships/{orgDocId} {
+      match /orgMemberships/{orgDocId} {
         allow read, write: if isSignedIn() && uid() == userId;
       }
     }
@@ -49,10 +70,10 @@ service cloud.firestore {
         allow create: if isSignedIn() && memberId == uid() &&
           get(/databases/$(database)/documents/organizations/$(orgDocId)).data.createdBy == uid();
         // Allow invitation-based join: user must supply a valid invitation token
-        // and the invitation's email must match the signed-in user's email
+        // and the invitation must still be pending
         allow create: if isSignedIn() && memberId == uid() &&
           request.resource.data.keys().hasAll(['invitationToken']) &&
-          get(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(request.resource.data.invitationToken)).data.email == request.auth.token.email;
+          invitationIsPending(orgDocId, request.resource.data.invitationToken);
         // Admins can manage all member docs
         allow update, delete: if isAdmin(orgDocId);
       }
@@ -60,8 +81,13 @@ service cloud.firestore {
       // Invitations
       match /invitations/{inviteId} {
         allow read: if isAdmin(orgDocId) ||
-          (isSignedIn() && request.auth.token.email == resource.data.email);
-        allow write: if isAdmin(orgDocId);
+          (isSignedIn() && resource.data.status == 'pending');
+        allow create, delete: if isAdmin(orgDocId);
+        allow update: if isAdmin(orgDocId) ||
+          (isSignedIn() &&
+            invitationIsPending(orgDocId, inviteId) &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']) &&
+            request.resource.data.status == 'accepted');
       }
 
       // ── Projects ──────────────────────────────────────────────────────────

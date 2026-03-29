@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { MobileNav } from './MobileNav'
+import { NotificationPanel } from './NotificationPanel'
 import { clsx } from 'clsx'
 
 export function AppLayout() {
@@ -41,6 +42,8 @@ export function AppLayout() {
         </main>
         <MobileNav />
       </div>
+
+      <NotificationPanel />
     </div>
   )
 }

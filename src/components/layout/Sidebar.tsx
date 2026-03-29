@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
 import { signOut } from '@/services/auth.service'
 import { Avatar } from '@/components/ui/Avatar'
+import { WebtownLogo } from '@/components/branding/WebtownLogo'
 import { ROUTES } from '@/config/constants'
 
 interface NavItem {
@@ -24,15 +25,6 @@ const navItems: NavItem[] = [
   { label: 'Riportok',   to: ROUTES.ORG_REPORTS, icon: <BarChart2 className="h-5 w-5" />, adminOnly: true },
 ]
 
-function WebtownLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <rect width="32" height="32" rx="8" fill="#16b632"/>
-      <path d="M5 9L10.5 23L16 12L21.5 23L27 9" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
 export function Sidebar() {
   const { userProfile } = useAuthStore()
   const { currentOrg, orgRole } = useOrgStore()
@@ -47,9 +39,12 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-60 flex-col bg-navy-800">
       {/* Logo / Org */}
-      <div className="flex h-14 items-center gap-3 border-b border-white/10 px-4">
-        <WebtownLogo className="h-7 w-7 shrink-0" />
+      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4">
+        <WebtownLogo variant="light" className="h-8 shrink-0" />
         <div className="flex-1 min-w-0">
+          <p className="truncate text-[11px] uppercase tracking-[0.18em] text-white/35">
+            Workspace
+          </p>
           <p className="truncate text-sm font-semibold text-white">
             {currentOrg?.name ?? 'Agile Task Manager'}
           </p>

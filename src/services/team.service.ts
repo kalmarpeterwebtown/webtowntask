@@ -152,6 +152,8 @@ export async function moveStoryToColumn(
     boardId: teamId,
     columnId,
     columnOrder: newOrder,
+    backlogOrder: null,
+    planboxOrder: null,
     updatedAt: serverTimestamp(),
   })
 }

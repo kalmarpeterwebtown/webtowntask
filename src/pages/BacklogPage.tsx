@@ -1,5 +1,5 @@
-import { useState, useEffect, type FormEvent, type CSSProperties } from 'react'
-import { useParams } from 'react-router-dom'
+import { useState, useEffect, useMemo, type FormEvent, type CSSProperties } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -16,18 +16,24 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { ChevronDown, ChevronRight, Plus, Layout, Package, Archive, Tag as TagIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Layout, Package, Archive, Link2, Tag as TagIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StoryRow } from '@/components/backlog/StoryRow'
-import { StoryFormModal } from '@/components/story/StoryFormModal'
+import { InlineStoryComposer } from '@/components/story/InlineStoryComposer'
+import { ROUTES } from '@/config/constants'
 import { useBacklog } from '@/hooks/useBacklog'
+import { useProjects } from '@/hooks/useProjects'
+import { useProjectAccessMap } from '@/hooks/useAccess'
 import { useOrgStore } from '@/stores/orgStore'
-import { moveStory } from '@/services/story.service'
+import { moveStory, updateStory, createStory } from '@/services/story.service'
 import { subscribeToTags, createTag, addTagToStory } from '@/services/tag.service'
+import { subscribeToTeams } from '@/services/team.service'
+import { subscribeToProjectMemberships } from '@/services/access.service'
 import { keyBetween } from '@/utils/fractionalIndex'
+import { canWrite } from '@/utils/permissions'
 import { toast } from '@/stores/uiStore'
 import type { StoryLocation } from '@/types/enums'
-import type { Story, Tag } from '@/types/models'
+import type { Story, Tag, Team, ProjectMembership } from '@/types/models'
 
 const PRESET_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
@@ -222,16 +228,29 @@ interface SectionProps {
   location: StoryLocation
   stories: Story[]
   projectId: string
+  readOnly: boolean
   isOpen: boolean
   onToggle: () => void
   onAddStory: (location: StoryLocation, afterOrder?: string) => void
+  onEstimateSave: (storyId: string, estimate: number | null) => Promise<void>
+  creating: boolean
+  projectMembers: ProjectMembership[]
+  onCreateStory: (location: StoryLocation, input: { title: string; estimate?: number; projectId: string; assigneeId?: string; assigneeName?: string }, afterOrder?: string) => Promise<void>
+  onCancelCreate: () => void
+  currentProject: { name: string; prefix: string } | null
   tagMap: Map<string, Tag>
   isTagDragging: boolean
   overStoryId: string | null
 }
 
 function BacklogSection({
-  location, stories, projectId, isOpen, onToggle, onAddStory,
+  location, stories, projectId, readOnly, isOpen, onToggle, onAddStory,
+  onEstimateSave,
+  creating,
+  projectMembers,
+  onCreateStory,
+  onCancelCreate,
+  currentProject,
   tagMap, isTagDragging, overStoryId,
 }: SectionProps) {
   const config = SECTION_CONFIG.find((s) => s.location === location)!
@@ -262,6 +281,8 @@ function BacklogSection({
                 key={story.id}
                 story={story}
                 projectId={projectId}
+                readOnly={readOnly}
+                onEstimateSave={onEstimateSave}
                 tagMap={tagMap}
                 isTagDragging={isTagDragging}
                 isTagDropTarget={isTagDragging && overStoryId === story.id}
@@ -273,17 +294,28 @@ function BacklogSection({
             <p className="py-4 text-center text-sm text-gray-400">{config.emptyText}</p>
           )}
 
-          <button
-            onClick={() => onAddStory(
-              location,
-              stories[stories.length - 1]?.backlogOrder
-                ?? stories[stories.length - 1]?.planboxOrder,
-            )}
-            className="flex items-center gap-2 w-full mt-2 px-2 py-1.5 text-sm text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Story hozzáadása
-          </button>
+          {creating ? (
+            <InlineStoryComposer
+              projects={[{ id: projectId, name: currentProject?.name ?? 'Projekt', prefix: currentProject?.prefix ?? 'PRJ' }]}
+              membersByProjectId={{ [projectId]: projectMembers }}
+              onSubmit={(input) => onCreateStory(location, input, stories[stories.length - 1]?.backlogOrder ?? stories[stories.length - 1]?.planboxOrder)}
+              onCancel={onCancelCreate}
+              className="mt-2"
+            />
+          ) : (
+            <button
+              onClick={() => onAddStory(
+                location,
+                stories[stories.length - 1]?.backlogOrder
+                  ?? stories[stories.length - 1]?.planboxOrder,
+              )}
+              disabled={readOnly}
+              className="flex items-center gap-2 w-full mt-2 px-2 py-1.5 text-sm text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Story hozzáadása
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -295,10 +327,26 @@ function BacklogSection({
 export function BacklogPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { currentOrg } = useOrgStore()
-  const { groups, loading } = useBacklog(projectId ?? '')
+  const orgId = currentOrg?.id ?? null
+  const { projects: allProjects } = useProjects()
+  const {
+    accessByProjectId,
+    projects: visibleProjects,
+    loading: accessLoading,
+  } = useProjectAccessMap(allProjects)
+  const projectAccess = projectId ? accessByProjectId[projectId] ?? null : null
+  const readOnly = !canWrite(projectAccess ?? undefined)
+  const canAccessProject = visibleProjects.some((project) => project.id === projectId)
+  const currentProject = useMemo(
+    () => visibleProjects.find((project) => project.id === projectId) ?? null,
+    [visibleProjects, projectId],
+  )
+  const { groups, loading } = useBacklog(projectId ?? '', canAccessProject)
 
   const [tags, setTags] = useState<Tag[]>([])
+  const [linkedTeams, setLinkedTeams] = useState<Team[]>([])
   const [tagMap, setTagMap] = useState<Map<string, Tag>>(new Map())
+  const [projectMembers, setProjectMembers] = useState<ProjectMembership[]>([])
   const [openSections, setOpenSections] = useState<Record<StoryLocation, boolean>>({
     board: false,
     planbox: true,
@@ -319,12 +367,24 @@ export function BacklogPage() {
 
   // Subscribe to tags
   useEffect(() => {
-    if (!currentOrg || !projectId) return
-    return subscribeToTags(currentOrg.id, projectId, (t) => {
+    if (!orgId || !projectId || !canAccessProject) return
+    return subscribeToTags(orgId, projectId, (t) => {
       setTags(t)
       setTagMap(new Map(t.map((tag) => [tag.id, tag])))
     })
-  }, [currentOrg?.id, projectId])
+  }, [orgId, projectId, canAccessProject])
+
+  useEffect(() => {
+    if (!orgId || !projectId) return
+    return subscribeToTeams(orgId, (teams) => {
+      setLinkedTeams(teams.filter((team) => team.connectedProjectIds.includes(projectId)))
+    })
+  }, [orgId, projectId])
+
+  useEffect(() => {
+    if (!orgId || !projectId || !canAccessProject) return
+    return subscribeToProjectMemberships(orgId, projectId, setProjectMembers)
+  }, [orgId, projectId, canAccessProject])
 
   const toggleSection = (location: StoryLocation) => {
     setOpenSections((prev) => ({ ...prev, [location]: !prev[location] }))
@@ -332,6 +392,39 @@ export function BacklogPage() {
 
   const openAddStory = (location: StoryLocation, afterOrder?: string) => {
     setStoryForm({ open: true, location, afterOrder })
+  }
+
+  const handleCreateStory = async (
+    location: StoryLocation,
+    input: { title: string; estimate?: number; projectId: string; assigneeId?: string; assigneeName?: string },
+    afterOrder?: string,
+  ) => {
+    if (!orgId || !projectId || readOnly) return
+
+    const storyId = await createStory(orgId, projectId, {
+      title: input.title,
+      type: 'feature',
+      priority: 'medium',
+      location,
+      estimate: input.estimate,
+      afterOrder,
+    })
+
+    if (input.assigneeId && input.assigneeName) {
+      await updateStory(orgId, projectId, storyId, {
+        assigneeIds: [input.assigneeId],
+        assigneeNames: [input.assigneeName],
+      })
+    }
+
+    setStoryForm({ open: false, location: 'backlog' })
+    toast.success('Story létrehozva!')
+  }
+
+  const handleEstimateSave = async (storyId: string, estimate: number | null) => {
+    if (readOnly || !orgId || !projectId) return
+    await updateStory(orgId, projectId, storyId, { estimate })
+    toast.success('Pontozás frissítve.')
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -355,7 +448,7 @@ export function BacklogPage() {
     setActiveTag(null)
     setOverStoryId(null)
 
-    if (!over || !currentOrg || !projectId) return
+    if (!over || !currentOrg || !projectId || readOnly) return
 
     // ── Tag dropped onto a story ──
     if (active.data.current?.type === 'tag') {
@@ -394,14 +487,42 @@ export function BacklogPage() {
 
   if (!projectId) return null
 
+  if (accessLoading) {
+    return (
+      <div className="p-6">
+        <div className="h-16 rounded-xl bg-gray-100 animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!canAccessProject) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500">Ehhez a backloghoz jelenleg nincs hozzáférésed.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Backlog</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold text-gray-900">Backlog</h1>
+            {currentProject && (
+              <span className="rounded bg-primary-100 px-2 py-0.5 text-xs font-bold text-primary-700">
+                {currentProject.prefix}
+              </span>
+            )}
+            {readOnly && (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                Csak olvasás
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            {loading
+            {loading || accessLoading
               ? '...'
               : `${groups.board.length + groups.planbox.length + groups.backlog.length} story összesen`}
           </p>
@@ -409,9 +530,36 @@ export function BacklogPage() {
         <Button
           icon={<Plus className="h-4 w-4" />}
           onClick={() => openAddStory('backlog')}
+          disabled={readOnly}
         >
           Új story
         </Button>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <Link2 className="h-4 w-4 text-primary-600" />
+          Kapcsolt csapatok és boardok
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Innen látszik, mely csapatok használják ezt a projekt backlogját.
+        </p>
+        {linkedTeams.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-400">Ehhez a projekthez még nincs csapat kapcsolva.</p>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {linkedTeams.map((team) => (
+              <Link
+                key={team.id}
+                to={ROUTES.BOARD(team.id)}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:border-primary-300 hover:text-primary-700"
+              >
+                <span>{team.name}</span>
+                <span className="rounded bg-white px-2 py-0.5 text-[11px] text-gray-400">Board</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -437,9 +585,16 @@ export function BacklogPage() {
                   location={location}
                   stories={groups[location]}
                   projectId={projectId}
+                  readOnly={readOnly}
                   isOpen={openSections[location]}
                   onToggle={() => toggleSection(location)}
                   onAddStory={openAddStory}
+                  onEstimateSave={handleEstimateSave}
+                  creating={storyForm.open && storyForm.location === location}
+                  projectMembers={projectMembers}
+                  onCreateStory={handleCreateStory}
+                  onCancelCreate={() => setStoryForm((state) => ({ ...state, open: false }))}
+                  currentProject={currentProject ? { name: currentProject.name, prefix: currentProject.prefix } : null}
                   tagMap={tagMap}
                   isTagDragging={activeType === 'tag'}
                   overStoryId={overStoryId}
@@ -448,7 +603,7 @@ export function BacklogPage() {
             </div>
 
             {/* Tag sidebar */}
-            {currentOrg && (
+            {currentOrg && !readOnly && (
               <TagSidebar
                 tags={tags}
                 orgId={currentOrg.id}
@@ -465,14 +620,6 @@ export function BacklogPage() {
           </DragOverlay>
         </DndContext>
       )}
-
-      <StoryFormModal
-        isOpen={storyForm.open}
-        onClose={() => setStoryForm((s) => ({ ...s, open: false }))}
-        projectId={projectId}
-        defaultLocation={storyForm.location}
-        afterOrder={storyForm.afterOrder}
-      />
     </div>
   )
 }
