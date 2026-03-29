@@ -49,6 +49,7 @@ export const ROUTES = {
   ORG_SETTINGS:    '/settings/organization',
   USERS:           '/settings/users',
   PROFILE:         '/settings/profile',
+  SETUP:           '/setup',
   CLIENT:          '/client',
   CLIENT_PROJECT:  (id: string) => `/client/projects/${id}`,
 } as const

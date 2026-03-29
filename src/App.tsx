@@ -1,6 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthInit } from '@/hooks/useAuth'
-import { AuthGuard, AdminGuard } from '@/components/auth/AuthGuard'
+import { AuthGuard, OrgGuard, AdminGuard } from '@/components/auth/AuthGuard'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ClientLayout } from '@/components/layout/ClientLayout'
 import { ToastContainer } from '@/components/ui/Toast'
@@ -27,6 +27,7 @@ import { UserManagementPage } from '@/pages/UserManagementPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ClientDashboardPage } from '@/pages/ClientDashboardPage'
 import { ClientProjectPage } from '@/pages/ClientProjectPage'
+import { OrgSetupPage } from '@/pages/OrgSetupPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 export default function App() {
@@ -43,6 +44,11 @@ export default function App() {
 
         {/* Védett oldalak */}
         <Route element={<AuthGuard />}>
+          {/* Onboarding — org nélküli user */}
+          <Route path="/setup" element={<OrgSetupPage />} />
+
+          {/* Org szükséges a továbbiakhoz */}
+          <Route element={<OrgGuard />}>
           {/* Normál app layout */}
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
@@ -71,6 +77,7 @@ export default function App() {
             <Route path="/client" element={<ClientDashboardPage />} />
             <Route path="/client/projects/:projectId" element={<ClientProjectPage />} />
           </Route>
+          </Route> {/* /OrgGuard */}
         </Route>
 
         <Route path="/404" element={<NotFoundPage />} />

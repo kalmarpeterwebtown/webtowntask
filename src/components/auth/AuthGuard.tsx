@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useOrgStore } from '@/stores/orgStore'
 import { ROUTES } from '@/config/constants'
 
 export function AuthGuard() {
@@ -23,10 +24,33 @@ export function AuthGuard() {
   return <Outlet />
 }
 
+/** Bejelentkezett, de még nincs szervezete — átirányítja az onboarding oldalra */
+export function OrgGuard() {
+  const { initialized, loading } = useAuthStore()
+  const { currentOrg, loading: orgLoading } = useOrgStore()
+
+  if (!initialized || loading || orgLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
+          <p className="text-sm text-gray-500">Betöltés...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentOrg) {
+    return <Navigate to={ROUTES.SETUP} replace />
+  }
+
+  return <Outlet />
+}
+
 /** Kliens szerep számára — standard app nézet helyett Client layout-ot jelenít meg */
 export function ClientGuard() {
-  const { claims } = useAuthStore()
-  if (claims.orgRole === 'client') {
+  const { orgRole } = useOrgStore()
+  if (orgRole === 'client') {
     return <Navigate to={ROUTES.CLIENT} replace />
   }
   return <Outlet />
@@ -34,8 +58,8 @@ export function ClientGuard() {
 
 /** Csak Admin számára elérhető route-ok */
 export function AdminGuard() {
-  const { claims } = useAuthStore()
-  if (claims.orgRole !== 'admin' && claims.orgRole !== 'owner') {
+  const { orgRole } = useOrgStore()
+  if (orgRole !== 'admin' && orgRole !== 'owner') {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
   return <Outlet />

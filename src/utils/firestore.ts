@@ -5,6 +5,12 @@ import { db } from '@/config/firebase'
 export const orgRef = (orgId: string) =>
   doc(db, 'organizations', orgId)
 
+export const orgMembersRef = (orgId: string) =>
+  collection(db, 'organizations', orgId, 'members')
+
+export const orgMemberRef = (orgId: string, userId: string) =>
+  doc(db, 'organizations', orgId, 'members', userId)
+
 export const projectsRef = (orgId: string) =>
   collection(db, 'organizations', orgId, 'projects')
 

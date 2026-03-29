@@ -27,7 +27,7 @@ export function AppLayout() {
             className="absolute inset-0 bg-black/30"
             onClick={() => useUiStore.getState().setSidebarOpen(false)}
           />
-          <div className="absolute left-0 top-0 h-full w-60 bg-white shadow-xl">
+          <div className="absolute left-0 top-0 h-full w-60 shadow-xl">
             <Sidebar />
           </div>
         </div>

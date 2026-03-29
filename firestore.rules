@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function uid() { return request.auth.uid; }
+    function isSignedIn() { return request.auth != null; }
+
+    // Check membership via Firestore doc (no custom claims needed for MVP)
+    function isMember(orgDocId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/organizations/$(orgDocId)/members/$(uid()));
+    }
+
+    function isAdmin(orgDocId) {
+      return isMember(orgDocId) &&
+        get(/databases/$(database)/documents/organizations/$(orgDocId)/members/$(uid())).data.role
+          in ['owner', 'admin'];
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Allow any signed-in user to read profiles (for assignee display)
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && uid() == userId;
+      allow update: if isSignedIn() && uid() == userId;
+      allow delete: if false;
+
+      match /notifications/{notifId} {
+        allow read, write: if isSignedIn() && uid() == userId;
+      }
+
+      match /memberships/{orgDocId} {
+        allow read, write: if isSignedIn() && uid() == userId;
+      }
+    }
+
+    // ── Organizations ──────────────────────────────────────────────────────
+    match /organizations/{orgDocId} {
+      allow read: if isMember(orgDocId);
+      allow create: if isSignedIn();   // first org — no membership yet
+      allow update: if isAdmin(orgDocId);
+      allow delete: if false;
+
+      // Org members
+      match /members/{memberId} {
+        allow read: if isMember(orgDocId);
+        // Allow a user to add themselves as owner when they create the org
+        allow create: if isSignedIn() && memberId == uid() &&
+          get(/databases/$(database)/documents/organizations/$(orgDocId)).data.createdBy == uid();
+        // Allow invitation-based join: user must supply a valid invitation token
+        // and the invitation's email must match the signed-in user's email
+        allow create: if isSignedIn() && memberId == uid() &&
+          request.resource.data.keys().hasAll(['invitationToken']) &&
+          get(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(request.resource.data.invitationToken)).data.email == request.auth.token.email;
+        // Admins can manage all member docs
+        allow update, delete: if isAdmin(orgDocId);
+      }
+
+      // Invitations
+      match /invitations/{inviteId} {
+        allow read: if isAdmin(orgDocId) ||
+          (isSignedIn() && request.auth.token.email == resource.data.email);
+        allow write: if isAdmin(orgDocId);
+      }
+
+      // ── Projects ──────────────────────────────────────────────────────────
+      match /projects/{projectId} {
+        allow read: if isMember(orgDocId);
+        allow create: if isMember(orgDocId);
+        allow update: if isMember(orgDocId);
+        allow delete: if isAdmin(orgDocId);
+
+        match /memberships/{memberId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        // ── Stories ───────────────────────────────────────────────────────
+        match /stories/{storyId} {
+          allow read, write: if isMember(orgDocId);
+
+          match /tasks/{taskId} {
+            allow read, write: if isMember(orgDocId);
+          }
+
+          match /comments/{commentId} {
+            allow read: if isMember(orgDocId);
+            allow create: if isMember(orgDocId);
+            allow update: if isSignedIn() && uid() == resource.data.authorId;
+            allow delete: if isSignedIn() &&
+              (uid() == resource.data.authorId || isAdmin(orgDocId));
+          }
+
+          match /worklogs/{worklogId} {
+            allow read, write: if isMember(orgDocId);
+          }
+
+          match /attachments/{attachmentId} {
+            allow read, write: if isMember(orgDocId);
+          }
+        }
+
+        match /dividers/{dividerId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /tags/{tagId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /topics/{topicId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /activityLogs/{logId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /savedFilters/{filterId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /stats/{statId} {
+          allow read, write: if isMember(orgDocId);
+        }
+      }
+
+      // ── Teams ─────────────────────────────────────────────────────────────
+      match /teams/{teamId} {
+        allow read: if isMember(orgDocId);
+        allow create: if isMember(orgDocId);
+        allow update: if isMember(orgDocId);
+        allow delete: if isAdmin(orgDocId);
+
+        match /memberships/{memberId} {
+          allow read, write: if isMember(orgDocId);
+        }
+
+        match /sprints/{sprintId} {
+          allow read, write: if isMember(orgDocId);
+
+          match /dailySnapshots/{dateStr} {
+            allow read, write: if isMember(orgDocId);
+          }
+        }
+      }
+    }
+  }
+}

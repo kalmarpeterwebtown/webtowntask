@@ -1,0 +1,46 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "location", "order": "ASCENDING" },
+        { "fieldPath": "backlogOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "location", "order": "ASCENDING" },
+        { "fieldPath": "planboxOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "location", "order": "ASCENDING" },
+        { "fieldPath": "boardId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "boardId", "order": "ASCENDING" },
+        { "fieldPath": "columnId", "order": "ASCENDING" },
+        { "fieldPath": "columnOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sprintId", "order": "ASCENDING" },
+        { "fieldPath": "columnOrder", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

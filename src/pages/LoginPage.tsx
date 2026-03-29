@@ -132,16 +132,20 @@ function AuthShell({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-navy-800 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 text-white text-xl font-bold">
-            A
+          <div className="mx-auto mb-5 flex items-center justify-center gap-2">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-10 w-10">
+              <rect width="32" height="32" rx="8" fill="#16b632"/>
+              <path d="M5 9L10.5 23L16 12L21.5 23L27 9" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-2xl font-extrabold text-white tracking-tight">webtown</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-          <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+          <h1 className="text-xl font-bold text-white">{title}</h1>
+          <p className="mt-1 text-sm text-white/50">{subtitle}</p>
         </div>
-        <div className="rounded-xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
+        <div className="rounded-2xl bg-white p-8 shadow-xl">
           {children}
         </div>
       </div>
