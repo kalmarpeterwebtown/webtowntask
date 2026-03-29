@@ -9,9 +9,9 @@ interface WebtownLogoProps {
 }
 
 const logoByVariant: Record<WebtownLogoVariant, string> = {
-  light: '/brand/webtown-logo-white.svg',
-  dark: '/brand/webtown-logo-black.svg',
-  brand: '/brand/webtown-logo.svg',
+  light: 'brand/webtown-logo-white.svg',
+  dark: 'brand/webtown-logo-black.svg',
+  brand: 'brand/webtown-logo.svg',
 }
 
 export function WebtownLogo({
@@ -19,9 +19,11 @@ export function WebtownLogo({
   className,
   alt = 'Webtown',
 }: WebtownLogoProps) {
+  const src = `${import.meta.env.BASE_URL}${logoByVariant[variant]}`
+
   return (
     <img
-      src={logoByVariant[variant]}
+      src={src}
       alt={alt}
       className={clsx('block h-auto w-auto', className)}
     />
