@@ -24,6 +24,10 @@ export type CreateStoryInput = {
   dueDate?: Date
   /** Ha van, ehhez a sorhoz képest kerül a listába (mögé). Undefined = lista elejére. */
   afterOrder?: string
+  /** Board-ra való közvetlen létrehozáshoz */
+  boardId?: string
+  columnId?: string
+  columnOrder?: string
 }
 
 /**
@@ -63,9 +67,9 @@ export async function createStory(
       location: input.location,
       backlogOrder: input.location === 'backlog' ? order : null,
       planboxOrder: input.location === 'planbox' ? order : null,
-      boardId: null,
-      columnId: null,
-      columnOrder: null,
+      boardId: input.boardId ?? null,
+      columnId: input.columnId ?? null,
+      columnOrder: input.columnOrder ?? null,
       assigneeIds: [],
       assigneeNames: [],
       reporterId: user.uid,
