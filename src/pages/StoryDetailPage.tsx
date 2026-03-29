@@ -813,10 +813,10 @@ export function StoryDetailPage() {
                             onChange={(e) => setTaskDescriptionDraftById((prev) => ({ ...prev, [task.id]: e.target.value }))}
                             onBlur={() => void handleSaveTaskDescription(task)}
                             readOnly={readOnly}
-                            rows={editingTaskDescriptionId === task.id || (task.description ?? '').length > 0 ? 2 : 1}
+                            rows={editingTaskDescriptionId === task.id || (task.description ?? '').length > 0 ? 4 : 2}
                             placeholder="Task leírása..."
                             className={clsx(
-                              'mt-0.5 w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none resize-none',
+                              'mt-0.5 min-h-[92px] w-full rounded-lg border px-3 py-2 text-sm outline-none',
                               readOnly
                                 ? 'border-transparent bg-transparent text-gray-500'
                                 : 'border-gray-200 bg-gray-50 text-gray-600 focus:border-primary-500 focus:bg-white',
