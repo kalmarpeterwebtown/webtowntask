@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/Button'
 import { WebtownLogo } from '@/components/branding/WebtownLogo'
 import { createOrganization } from '@/services/organization.service'
 import { useOrgStore } from '@/stores/orgStore'
+import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/config/constants'
 
 export function OrgSetupPage() {
   const navigate = useNavigate()
+  const { userProfile, claims } = useAuthStore()
   const { currentOrg, memberships, membershipsLoaded, loading: orgLoading, setCurrentOrg } = useOrgStore()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -21,7 +23,9 @@ export function OrgSetupPage() {
     }
   }, [currentOrg, navigate])
 
-  if (orgLoading || !membershipsLoaded || (membershipsLoaded && memberships.length > 0 && !currentOrg)) {
+  const hasResolvableOrgHint = Boolean(currentOrg || claims.orgId || userProfile?.currentOrgId || memberships.length > 0)
+
+  if (orgLoading || !membershipsLoaded || (hasResolvableOrgHint && !currentOrg)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-navy-800 p-4">
         <div className="flex flex-col items-center gap-3">

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { onSnapshot, doc } from 'firebase/firestore'
+import { onSnapshot, doc, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
@@ -109,8 +109,17 @@ export function useAuthInit() {
           } as OrgMembership))
           setMemberships(orgMemberships)
           setMembershipsLoaded(true)
-          if (!activeOrgId && orgMemberships[0]?.id) {
-            activateOrg(orgMemberships[0].id, firebaseUser.uid)
+          if (orgMemberships[0]?.id) {
+            if (!activeOrgId) {
+              activateOrg(orgMemberships[0].id, firebaseUser.uid)
+            }
+
+            const currentProfile = useAuthStore.getState().userProfile
+            if (!currentProfile?.currentOrgId) {
+              void setDoc(userRef(firebaseUser.uid), {
+                currentOrgId: orgMemberships[0].id,
+              }, { merge: true })
+            }
           }
         },
         (error) => {
@@ -130,6 +139,11 @@ export function useAuthInit() {
           const resolvedOrgId = claims.orgId ?? profileData.currentOrgId ?? orgMemberships[0]?.id
           if (resolvedOrgId) {
             activateOrg(resolvedOrgId, firebaseUser.uid)
+            if (!profileData.currentOrgId) {
+              void setDoc(userRef(firebaseUser.uid), {
+                currentOrgId: resolvedOrgId,
+              }, { merge: true })
+            }
           } else if (!resolvedOrgId) {
             cleanupOrgSubscriptions()
             setCurrentOrg(null)

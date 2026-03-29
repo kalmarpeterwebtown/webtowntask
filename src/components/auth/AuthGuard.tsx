@@ -28,10 +28,11 @@ export function AuthGuard() {
 
 /** Bejelentkezett, de még nincs szervezete — átirányítja az onboarding oldalra */
 export function OrgGuard() {
-  const { initialized, loading } = useAuthStore()
+  const { initialized, loading, userProfile, claims } = useAuthStore()
   const { currentOrg, memberships, membershipsLoaded, loading: orgLoading } = useOrgStore()
 
-  const waitingForOrgResolution = membershipsLoaded && memberships.length > 0 && !currentOrg
+  const hasResolvableOrgHint = Boolean(currentOrg || claims.orgId || userProfile?.currentOrgId || memberships.length > 0)
+  const waitingForOrgResolution = hasResolvableOrgHint && !currentOrg
 
   if (!initialized || loading || orgLoading || !membershipsLoaded || waitingForOrgResolution) {
     return (
