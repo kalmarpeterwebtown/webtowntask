@@ -40,6 +40,14 @@
         { "fieldPath": "sprintId", "order": "ASCENDING" },
         { "fieldPath": "columnOrder", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "stories",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "assigneeIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
