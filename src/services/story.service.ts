@@ -184,7 +184,8 @@ export async function moveStory(
 }
 
 /**
- * Backlog realtime subscription — visszaadja a story-kat location szerint csoportosítva.
+ * Backlog realtime subscription — returns all project stories.
+ * Sorting is done client-side to avoid composite index requirements.
  */
 export function subscribeToBacklog(
   orgId: string,
@@ -193,13 +194,15 @@ export function subscribeToBacklog(
 ): () => void {
   const q = query(
     storiesRef(orgId, projectId),
-    orderBy('location'),
-    orderBy('backlogOrder'),
+    orderBy('createdAt'),
   )
 
   return onSnapshot(q, (snap) => {
     const stories = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Story))
     callback(stories)
+  }, (err) => {
+    console.error('subscribeToBacklog error:', err)
+    callback([])
   })
 }
 

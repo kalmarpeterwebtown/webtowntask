@@ -30,6 +30,12 @@ export function useBacklog(projectId: string) {
         else if (loc === 'planbox') result.planbox.push(story)
         else result.backlog.push(story)
       }
+      // Sort each group by their fractional index key (client-side)
+      const cmp = (a: string | null | undefined, b: string | null | undefined) =>
+        (a ?? '').localeCompare(b ?? '')
+      result.backlog.sort((a, b) => cmp(a.backlogOrder, b.backlogOrder))
+      result.planbox.sort((a, b) => cmp(a.planboxOrder, b.planboxOrder))
+      result.board.sort((a, b) => cmp(a.columnOrder, b.columnOrder))
       setGroups(result)
       setLoading(false)
     })
