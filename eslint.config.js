@@ -19,5 +19,9 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Firebase onSnapshot subscriptions legitimately call setState in effect bodies
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])
