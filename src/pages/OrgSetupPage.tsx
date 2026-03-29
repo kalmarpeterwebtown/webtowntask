@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -9,11 +9,28 @@ import { ROUTES } from '@/config/constants'
 
 export function OrgSetupPage() {
   const navigate = useNavigate()
-  const { setCurrentOrg } = useOrgStore()
+  const { currentOrg, memberships, membershipsLoaded, loading: orgLoading, setCurrentOrg } = useOrgStore()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (currentOrg) {
+      navigate(ROUTES.DASHBOARD, { replace: true })
+    }
+  }, [currentOrg, navigate])
+
+  if (orgLoading || !membershipsLoaded || (membershipsLoaded && memberships.length > 0 && !currentOrg)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy-800 p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          <p className="text-sm text-white/70">Szervezet betöltése...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleNameChange = (value: string) => {
     setName(value)
