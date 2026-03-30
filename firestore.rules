@@ -18,6 +18,62 @@ service cloud.firestore {
           in ['owner', 'admin'];
     }
 
+    function orgRole(orgDocId) {
+      return isMember(orgDocId)
+        ? get(/databases/$(database)/documents/organizations/$(orgDocId)/members/$(uid())).data.role
+        : null;
+    }
+
+    function isClient(orgDocId) {
+      return orgRole(orgDocId) == 'client';
+    }
+
+    function projectMembershipExists(orgDocId, projectId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/organizations/$(orgDocId)/projects/$(projectId)/memberships/$(uid()));
+    }
+
+    function projectAccess(orgDocId, projectId) {
+      return projectMembershipExists(orgDocId, projectId)
+        ? get(/databases/$(database)/documents/organizations/$(orgDocId)/projects/$(projectId)/memberships/$(uid())).data.access
+        : null;
+    }
+
+    function canReadProject(orgDocId, projectId) {
+      return isAdmin(orgDocId) || projectAccess(orgDocId, projectId) in ['read', 'write', 'manage'];
+    }
+
+    function canWriteProject(orgDocId, projectId) {
+      return isAdmin(orgDocId) || projectAccess(orgDocId, projectId) in ['write', 'manage'];
+    }
+
+    function canManageProject(orgDocId, projectId) {
+      return isAdmin(orgDocId) || projectAccess(orgDocId, projectId) == 'manage';
+    }
+
+    function teamMembershipExists(orgDocId, teamId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/organizations/$(orgDocId)/teams/$(teamId)/memberships/$(uid()));
+    }
+
+    function teamAccess(orgDocId, teamId) {
+      return teamMembershipExists(orgDocId, teamId)
+        ? get(/databases/$(database)/documents/organizations/$(orgDocId)/teams/$(teamId)/memberships/$(uid())).data.access
+        : null;
+    }
+
+    function canReadTeam(orgDocId, teamId) {
+      return isAdmin(orgDocId) || teamAccess(orgDocId, teamId) in ['read', 'write', 'manage'];
+    }
+
+    function canWriteTeam(orgDocId, teamId) {
+      return isAdmin(orgDocId) || teamAccess(orgDocId, teamId) in ['write', 'manage'];
+    }
+
+    function canManageTeam(orgDocId, teamId) {
+      return isAdmin(orgDocId) || teamAccess(orgDocId, teamId) == 'manage';
+    }
+
     function invitationMatchesUser(orgDocId, inviteId) {
       return isSignedIn() &&
         get(/databases/$(database)/documents/organizations/$(orgDocId)/invitations/$(inviteId)).data.email == request.auth.token.email;
@@ -92,81 +148,107 @@ service cloud.firestore {
 
       // ── Projects ──────────────────────────────────────────────────────────
       match /projects/{projectId} {
-        allow read: if isMember(orgDocId);
-        allow create: if isMember(orgDocId);
-        allow update: if isMember(orgDocId);
+        allow read: if canReadProject(orgDocId, projectId);
+        allow create: if isAdmin(orgDocId);
+        allow update: if canManageProject(orgDocId, projectId);
         allow delete: if isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update, delete: if canManageProject(orgDocId, projectId);
         }
 
         // ── Stories ───────────────────────────────────────────────────────
         match /stories/{storyId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update: if canWriteProject(orgDocId, projectId);
+          allow delete: if canManageProject(orgDocId, projectId);
 
           match /tasks/{taskId} {
-            allow read, write: if isMember(orgDocId);
+            allow read: if canReadProject(orgDocId, projectId);
+            allow create, update: if canWriteProject(orgDocId, projectId);
+            allow delete: if canWriteProject(orgDocId, projectId);
           }
 
           match /comments/{commentId} {
-            allow read: if isMember(orgDocId);
-            allow create: if isMember(orgDocId);
-            allow update: if isSignedIn() && uid() == resource.data.authorId;
+            allow read: if canReadProject(orgDocId, projectId);
+            allow create: if canWriteProject(orgDocId, projectId);
+            allow update: if canReadProject(orgDocId, projectId) &&
+              uid() == resource.data.authorId;
             allow delete: if isSignedIn() &&
-              (uid() == resource.data.authorId || isAdmin(orgDocId));
+              canReadProject(orgDocId, projectId) &&
+              (uid() == resource.data.authorId || canManageProject(orgDocId, projectId));
           }
 
           match /worklogs/{worklogId} {
-            allow read, write: if isMember(orgDocId);
+            allow read: if canReadProject(orgDocId, projectId) && !isClient(orgDocId);
+            allow create: if canWriteProject(orgDocId, projectId) &&
+              !isClient(orgDocId) &&
+              request.resource.data.userId == uid();
+            allow update, delete: if false;
           }
 
           match /attachments/{attachmentId} {
-            allow read, write: if isMember(orgDocId);
+            allow read: if canReadProject(orgDocId, projectId);
+            allow create: if canWriteProject(orgDocId, projectId);
+            allow update, delete: if false;
           }
         }
 
         match /dividers/{dividerId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update, delete: if canWriteProject(orgDocId, projectId);
         }
 
         match /tags/{tagId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update, delete: if canWriteProject(orgDocId, projectId);
         }
 
         match /topics/{topicId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update, delete: if canWriteProject(orgDocId, projectId);
         }
 
         match /activityLogs/{logId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update: if canWriteProject(orgDocId, projectId);
+          allow delete: if false;
         }
 
         match /savedFilters/{filterId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update, delete: if canReadProject(orgDocId, projectId);
         }
 
         match /stats/{statId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadProject(orgDocId, projectId);
+          allow create, update: if canWriteProject(orgDocId, projectId);
+          allow delete: if false;
         }
       }
 
       // ── Teams ─────────────────────────────────────────────────────────────
       match /teams/{teamId} {
-        allow read: if isMember(orgDocId);
-        allow create: if isMember(orgDocId);
-        allow update: if isMember(orgDocId);
+        allow read: if canReadTeam(orgDocId, teamId);
+        allow create: if isAdmin(orgDocId);
+        allow update: if canManageTeam(orgDocId, teamId);
         allow delete: if isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadTeam(orgDocId, teamId);
+          allow create, update, delete: if canManageTeam(orgDocId, teamId);
         }
 
         match /sprints/{sprintId} {
-          allow read, write: if isMember(orgDocId);
+          allow read: if canReadTeam(orgDocId, teamId);
+          allow create, update: if canWriteTeam(orgDocId, teamId);
+          allow delete: if canManageTeam(orgDocId, teamId);
 
           match /dailySnapshots/{dateStr} {
-            allow read, write: if isMember(orgDocId);
+            allow read: if canReadTeam(orgDocId, teamId);
+            allow create, update: if canWriteTeam(orgDocId, teamId);
+            allow delete: if false;
           }
         }
       }

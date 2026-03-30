@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { AuthGuard } from '@/components/auth/AuthGuard'
+import { AuthGuard, OrgGuard } from '@/components/auth/AuthGuard'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
 
@@ -23,6 +23,7 @@ function ProtectedShell() {
 
 describe('AuthGuard', () => {
   afterEach(() => {
+    cleanup()
     useAuthStore.setState({
       firebaseUser: null,
       userProfile: null,
@@ -80,5 +81,119 @@ describe('AuthGuard', () => {
     )
 
     expect(await screen.findByText('private-page')).toBeInTheDocument()
+  })
+})
+
+describe('OrgGuard', () => {
+  afterEach(() => {
+    cleanup()
+    useAuthStore.setState({
+      firebaseUser: null,
+      userProfile: null,
+      claims: {},
+      loading: false,
+      initialized: true,
+    })
+    useOrgStore.getState().reset()
+  })
+
+  it('redirects to setup when no organization can be resolved', async () => {
+    useAuthStore.setState({
+      firebaseUser: { uid: 'user-1' } as never,
+      userProfile: null,
+      claims: {},
+      loading: false,
+      initialized: true,
+    })
+    useOrgStore.setState({
+      currentOrg: null,
+      memberships: [],
+      membershipsLoaded: true,
+      orgRole: null,
+      loading: false,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<OrgGuard />}>
+            <Route path="/dashboard" element={<div>org-page</div>} />
+          </Route>
+          <Route path="/setup" element={<div>setup-page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('setup-page')).toBeInTheDocument()
+  })
+
+  it('keeps loading while organization resolution is still in progress', async () => {
+    useAuthStore.setState({
+      firebaseUser: { uid: 'user-1' } as never,
+      userProfile: {
+        id: 'user-1',
+        email: 'dev@webtown.hu',
+        displayName: 'Dev User',
+        currentOrgId: 'org-1',
+      } as never,
+      claims: {},
+      loading: false,
+      initialized: true,
+    })
+    useOrgStore.setState({
+      currentOrg: null,
+      memberships: [],
+      membershipsLoaded: true,
+      orgRole: null,
+      loading: false,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<OrgGuard />}>
+            <Route path="/dashboard" element={<div>org-page</div>} />
+          </Route>
+          <Route path="/setup" element={<div>setup-page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Betöltés...')).toBeInTheDocument()
+    expect(screen.queryByText('setup-page')).not.toBeInTheDocument()
+  })
+
+  it('renders protected org content when current organization exists', async () => {
+    useAuthStore.setState({
+      firebaseUser: { uid: 'user-1' } as never,
+      userProfile: null,
+      claims: {},
+      loading: false,
+      initialized: true,
+    })
+    useOrgStore.setState({
+      currentOrg: {
+        id: 'org-1',
+        name: 'Webtown Test Organisation',
+        slug: 'webtown-test',
+      } as never,
+      memberships: [{ orgId: 'org-1' }] as never,
+      membershipsLoaded: true,
+      orgRole: 'admin',
+      loading: false,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<OrgGuard />}>
+            <Route path="/dashboard" element={<div>org-page</div>} />
+          </Route>
+          <Route path="/setup" element={<div>setup-page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('org-page')).toBeInTheDocument()
   })
 })

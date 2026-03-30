@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { onSnapshot } from 'firebase/firestore'
-import { FolderKanban, Search, Users, FileText, ArrowRight } from 'lucide-react'
+import { Search, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useUiStore } from '@/stores/uiStore'
@@ -9,57 +9,15 @@ import { useProjects } from '@/hooks/useProjects'
 import { useProjectAccessMap, useTeamAccessMap } from '@/hooks/useAccess'
 import { subscribeToTeams } from '@/services/team.service'
 import { storiesRef } from '@/utils/firestore'
-import type { Project, Story, Team } from '@/types/models'
-
-type SearchResult =
-  | { id: string; type: 'project'; title: string; subtitle: string; to: string; icon: typeof FolderKanban }
-  | { id: string; type: 'team'; title: string; subtitle: string; to: string; icon: typeof Users }
-  | { id: string; type: 'story'; title: string; subtitle: string; to: string; icon: typeof FileText }
-
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-}
-
-function createProjectResults(projects: Project[]): SearchResult[] {
-  return projects.map((project) => ({
-    id: `project-${project.id}`,
-    type: 'project',
-    title: project.name,
-    subtitle: `${project.prefix}${project.description ? ` · ${project.description}` : ''}`,
-    to: `/projects/${project.id}`,
-    icon: FolderKanban,
-  }))
-}
-
-function createTeamResults(teams: Team[]): SearchResult[] {
-  return teams.map((team) => ({
-    id: `team-${team.id}`,
-    type: 'team',
-    title: team.name,
-    subtitle: team.description || 'Csapat board és sprint nézet',
-    to: `/teams/${team.id}/board`,
-    icon: Users,
-  }))
-}
-
-function createStoryResults(stories: Story[], projectsById: Record<string, Project>): SearchResult[] {
-  return stories.map((story) => {
-    const project = projectsById[story.projectId]
-    const storyCode = project ? `${project.prefix}-${story.sequenceNumber}` : story.id
-    const assigneeText = story.assigneeNames.length > 0 ? ` · ${story.assigneeNames.join(', ')}` : ''
-    return {
-      id: `story-${story.id}`,
-      type: 'story',
-      title: story.title,
-      subtitle: `${storyCode}${assigneeText}${story.description ? ` · ${story.description}` : ''}`,
-      to: `/projects/${story.projectId}/stories/${story.id}`,
-      icon: FileText,
-    }
-  })
-}
+import {
+  createProjectResults,
+  createStoryResults,
+  createTeamResults,
+  filterSearchResults,
+  normalizeSearchValue,
+  type SearchResult,
+} from '@/utils/search'
+import type { Story, Team } from '@/types/models'
 
 export function GlobalSearchDialog() {
   const navigate = useNavigate()
@@ -152,27 +110,10 @@ export function GlobalSearchDialog() {
     () => createStoryResults(currentOrg?.id && projects.length > 0 ? stories : [], projectMap),
     [currentOrg?.id, projects.length, stories, projectMap],
   )
-  const normalizedQuery = normalize(deferredQuery.trim())
+  const normalizedQuery = normalizeSearchValue(deferredQuery.trim())
 
   const filteredResults = useMemo(() => {
-    const allResults = [...projectResults, ...teamResults, ...storyResults]
-    if (!normalizedQuery) {
-      return {
-        projects: projectResults.slice(0, 4),
-        teams: teamResults.slice(0, 4),
-        stories: storyResults.slice(0, 6),
-      }
-    }
-
-    const matches = allResults.filter((result) =>
-      normalize(`${result.title} ${result.subtitle}`).includes(normalizedQuery),
-    )
-
-    return {
-      projects: matches.filter((result) => result.type === 'project').slice(0, 5),
-      teams: matches.filter((result) => result.type === 'team').slice(0, 5),
-      stories: matches.filter((result) => result.type === 'story').slice(0, 8),
-    }
+    return filterSearchResults(normalizedQuery, projectResults, teamResults, storyResults)
   }, [normalizedQuery, projectResults, teamResults, storyResults])
 
   const totalResults =
