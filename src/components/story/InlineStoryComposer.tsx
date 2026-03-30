@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Check, UserCircle2, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Avatar } from '@/components/ui/Avatar'
@@ -48,7 +48,8 @@ export function InlineStoryComposer({
 
   const selectedAssignee = members.find((member) => member.id === assigneeId) ?? null
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event?: FormEvent) => {
+    event?.preventDefault()
     if (!title.trim() || !projectId) return
     setLoading(true)
     try {
@@ -68,7 +69,10 @@ export function InlineStoryComposer({
   }
 
   return (
-    <div className={clsx('rounded-xl border border-primary-200 bg-primary-50/70 p-3', className)}>
+    <form
+      onSubmit={(event) => void handleSubmit(event)}
+      className={clsx('rounded-xl border border-primary-200 bg-primary-50/70 p-3', className)}
+    >
       <div className="space-y-3">
         <input
           value={title}
@@ -151,8 +155,7 @@ export function InlineStoryComposer({
               Mégse
             </button>
             <button
-              type="button"
-              onClick={() => void handleSubmit()}
+              type="submit"
               disabled={loading || !title.trim() || !projectId}
               className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
             >
@@ -162,6 +165,6 @@ export function InlineStoryComposer({
           </div>
         </div>
       </div>
-    </div>
+    </form>
   )
 }

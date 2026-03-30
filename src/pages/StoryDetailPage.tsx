@@ -301,6 +301,12 @@ export function StoryDetailPage() {
   }
 
   const handleTaskKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.currentTarget.form?.requestSubmit()
+      return
+    }
+
     if (e.key === 'Escape') {
       setAddingTask(false)
       setNewTaskTitle('')
@@ -682,12 +688,12 @@ export function StoryDetailPage() {
                     }}
                     onClick={(e) => setDescriptionMentionQuery(getMentionQuery(storyDescriptionDraft, e.currentTarget.selectionStart))}
                     onKeyUp={(e) => setDescriptionMentionQuery(getMentionQuery(storyDescriptionDraft, e.currentTarget.selectionStart))}
-                    rows={4}
+                    rows={10}
                     placeholder="Írj részletes leírást, vagy említs meg valakit pl. @dev1"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-primary-500 resize-none"
+                    className="max-h-[420px] min-h-[240px] w-full resize-y overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/40 px-4 py-3 text-sm leading-6 text-gray-700 outline-none focus:border-primary-500 focus:bg-white"
                   />
                     {visibleDescriptionMentions.length > 0 && (
-                      <div className="absolute left-3 right-3 top-full z-20 mt-2 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                      <div className="absolute left-3 right-3 top-full z-20 mt-2 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
                         {visibleDescriptionMentions.map((member) => (
                           <button
                             key={member.id}
@@ -704,7 +710,7 @@ export function StoryDetailPage() {
                     )}
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-gray-400">Automatikus mentés, a mentionök értesítést küldenek.</p>
+                    <p className="text-xs text-gray-400">Automatikus mentés, Enter új sort ad, a mentionök értesítést küldenek.</p>
                     {savingStoryDescription && <span className="text-xs text-primary-600">Mentés...</span>}
                   </div>
                 </div>

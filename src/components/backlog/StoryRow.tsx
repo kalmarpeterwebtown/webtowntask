@@ -74,6 +74,9 @@ export function StoryRow({
 
   const handleEstimateSubmit = async (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
+    if ('preventDefault' in e) {
+      e.preventDefault()
+    }
     if (!onEstimateSave) return
 
     setSavingEstimate(true)
