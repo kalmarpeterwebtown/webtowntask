@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, GripVertical, Layout, PencilLine, X } from 'lucide-react'
+import { Check, GripVertical, Layout, PencilLine, Trash2, X } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { clsx } from 'clsx'
@@ -32,6 +32,8 @@ interface StoryRowProps {
   isTagDragging?: boolean
   isTagDropTarget?: boolean
   onEstimateSave?: (storyId: string, estimate: number | null) => Promise<void>
+  canDelete?: boolean
+  onDelete?: (story: Story) => void
 }
 
 export function StoryRow({
@@ -42,6 +44,8 @@ export function StoryRow({
   isTagDragging = false,
   isTagDropTarget = false,
   onEstimateSave,
+  canDelete = false,
+  onDelete,
 }: StoryRowProps) {
   const navigate = useNavigate()
   const { currentOrg } = useOrgStore()
@@ -97,6 +101,11 @@ export function StoryRow({
     <div
       ref={setNodeRef}
       style={style}
+      {...(!readOnly ? attributes : {})}
+      {...(!readOnly ? listeners : {})}
+      data-testid={`backlog-story-${story.id}`}
+      data-story-title={story.title}
+      data-story-location={story.location}
       className={clsx(
         'group flex flex-col rounded-lg border bg-white px-3 py-2.5',
         'hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer',
@@ -113,8 +122,7 @@ export function StoryRow({
         {/* Drag handle */}
         {!readOnly && (
           <button
-            {...attributes}
-            {...listeners}
+            data-testid={`story-drag-handle-${story.id}`}
             className="shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
             aria-label="Húzás a rendezéshez"
@@ -227,6 +235,21 @@ export function StoryRow({
           >
             <Layout className="h-3.5 w-3.5" />
             Board
+          </button>
+        )}
+
+        {canDelete && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(story)
+            }}
+            className="shrink-0 hidden text-gray-300 transition-colors hover:text-red-500 group-hover:flex"
+            title="Story törlése"
+            aria-label="Story törlése"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
       </div>

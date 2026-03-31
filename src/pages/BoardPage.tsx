@@ -1,20 +1,25 @@
-import { useState, useEffect, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore'
 import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
+  MeasuringStrategy,
   PointerSensor,
   useSensor,
   useSensors,
   useDroppable,
   useDraggable,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
+  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
@@ -31,16 +36,19 @@ import { useProjectAccessMap, useTeamAccessMap } from '@/hooks/useAccess'
 import { useProjects } from '@/hooks/useProjects'
 import { subscribeToTeam, subscribeToTeams, subscribeToBoardStories, moveStoryToColumn } from '@/services/team.service'
 import { subscribeToProjectMemberships } from '@/services/access.service'
-import { createStory, subscribeToBacklog, moveStoryOffBoard, moveStoryToBoard, updateStory } from '@/services/story.service'
+import { createStory, deleteStory, moveStoryOffBoard, moveStoryToBoard, subscribeToBacklog, updateStory } from '@/services/story.service'
 import { subscribeToTags } from '@/services/tag.service'
 import { toast } from '@/stores/uiStore'
 import { ROUTES, TYPE_COLORS, PRIORITY_COLORS } from '@/config/constants'
-import { keyBetween } from '@/utils/fractionalIndex'
+import { keyBetween, compareFractionalKeys } from '@/utils/fractionalIndex'
 import { storyRef, tasksRef, sprintsRef } from '@/utils/firestore'
+import { canManage } from '@/utils/permissions'
 import type { Team, BoardColumn, Story, Tag, Task, ProjectMembership, Sprint } from '@/types/models'
 
 const BOARD_STORY_PREFIX = 'board-story:'
 const BACKLOG_STORY_PREFIX = 'backlog-story:'
+const EMPTY_COLUMN_DROP_SUFFIX = '__empty-drop'
+const TOP_COLUMN_DROP_SUFFIX = '__top-drop'
 
 function toDayKey(date: Date) {
   const year = date.getFullYear()
@@ -99,12 +107,16 @@ function StoryQuickMenu({
   onUpdatePriority,
   onMoveToBacklog,
   onMoveToPlanbox,
+  onDelete,
+  canDelete,
 }: {
   story: Story
   onUpdateType: (story: Story, type: Story['type']) => void
   onUpdatePriority: (story: Story, priority: Story['priority']) => void
   onMoveToBacklog?: (story: Story) => void
   onMoveToPlanbox?: (story: Story) => void
+  onDelete?: (story: Story) => void
+  canDelete?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -173,6 +185,19 @@ function StoryQuickMenu({
                   Planbox
                 </button>
               )}
+            </>
+          )}
+
+          {canDelete && onDelete && (
+            <>
+              <div className="mt-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Veszélyzóna</div>
+              <button
+                type="button"
+                onClick={() => { onDelete(story); setOpen(false) }}
+                className="flex w-full rounded-lg px-2 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+              >
+                Törlés
+              </button>
             </>
           )}
         </div>
@@ -250,6 +275,8 @@ function StoryCard({
   onUpdatePriority,
   onMoveToBacklog,
   onMoveToPlanbox,
+  onDeleteStory,
+  canDeleteStory,
 }: {
   story: Story
   projectId: string
@@ -258,6 +285,8 @@ function StoryCard({
   onUpdatePriority: (story: Story, priority: Story['priority']) => void
   onMoveToBacklog: (story: Story) => void
   onMoveToPlanbox: (story: Story) => void
+  onDeleteStory: (story: Story) => void
+  canDeleteStory: (story: Story) => boolean
 }) {
   const sortableId = `${BOARD_STORY_PREFIX}${story.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -275,8 +304,10 @@ function StoryCard({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
+      data-testid={`story-card-${story.id}`}
+      data-story-title={story.title}
       className={clsx(
-        'rounded-lg border bg-white p-3 shadow-sm cursor-grab active:cursor-grabbing transition-shadow',
+        'rounded-lg border bg-white p-3 shadow-sm cursor-grab active:cursor-grabbing transition-all',
         isDragging || overlay ? 'opacity-50 shadow-lg border-primary-300' : 'border-gray-200 hover:border-gray-300 hover:shadow',
       )}
     >
@@ -290,6 +321,8 @@ function StoryCard({
             onUpdatePriority={onUpdatePriority}
             onMoveToBacklog={onMoveToBacklog}
             onMoveToPlanbox={onMoveToPlanbox}
+            onDelete={onDeleteStory}
+            canDelete={canDeleteStory(story)}
           />
         ) : undefined}
       />
@@ -538,6 +571,7 @@ function BacklogPanel({
 function BoardColumnView({
   column,
   stories,
+  itemIds,
   totalPoints,
   onAddStory,
   creating,
@@ -549,9 +583,12 @@ function BoardColumnView({
   onUpdatePriority,
   onMoveToBacklog,
   onMoveToPlanbox,
+  onDeleteStory,
+  canDeleteStory,
 }: {
   column: BoardColumn
   stories: Story[]
+  itemIds: string[]
   totalPoints: number
   onAddStory: (columnId: string) => void
   creating: boolean
@@ -563,19 +600,35 @@ function BoardColumnView({
   onUpdatePriority: (story: Story, priority: Story['priority']) => void
   onMoveToBacklog: (story: Story) => void
   onMoveToPlanbox: (story: Story) => void
+  onDeleteStory: (story: Story) => void
+  canDeleteStory: (story: Story) => boolean
 }) {
   const wipOver = column.wipLimit != null && stories.length > column.wipLimit
-  // Make the column itself a drop target (for empty columns)
-  const { setNodeRef, isOver } = useDroppable({ id: column.id })
+  const { setNodeRef: setColumnRef, isOver: isColumnOver } = useDroppable({ id: column.id })
+  const { setNodeRef: setEmptyDropRef, isOver: isEmptyDropOver } = useDroppable({ id: `${column.id}${EMPTY_COLUMN_DROP_SUFFIX}` })
+  const { setNodeRef: setTopDropRef, isOver: isTopDropOver } = useDroppable({ id: `${column.id}${TOP_COLUMN_DROP_SUFFIX}` })
+
+  // Build a map for fast story lookup by ID
+  const storyMap = useMemo(() => {
+    const m = new Map<string, Story>()
+    for (const s of stories) m.set(s.id, s)
+    return m
+  }, [stories])
+
+  // SortableContext items — derived from optimistic itemIds (during drag) or stories
+  const sortableIds = useMemo(
+    () => itemIds.map((id) => `${BOARD_STORY_PREFIX}${id}`),
+    [itemIds],
+  )
 
   return (
-    <div className="flex flex-col w-72 shrink-0">
+    <div className="flex flex-col w-72 shrink-0" data-testid={`board-column-${column.id}`} data-column-name={column.name}>
       <div className={clsx(
         'flex items-center gap-2 rounded-t-xl px-3 py-2.5 border-b',
         wipOver ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200',
       )}>
         <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: column.color ?? '#6B7280' }} />
-        <span className={clsx('flex-1 text-sm font-semibold', wipOver ? 'text-yellow-800' : 'text-gray-700')}>
+        <span className={clsx('flex-1 text-sm font-semibold', wipOver ? 'text-yellow-800' : 'text-gray-700')} data-testid="column-name">
           {column.name}
         </span>
         <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500">
@@ -590,33 +643,53 @@ function BoardColumnView({
       </div>
 
       <div
-        ref={setNodeRef}
+        ref={setColumnRef}
         className={clsx(
           'flex-1 rounded-b-xl border border-t-0 border-gray-200 p-2 space-y-2 min-h-[200px] transition-colors',
           wipOver && 'border-yellow-200',
-          isOver && !wipOver ? 'bg-primary-50/60 border-primary-200' : 'bg-gray-50/50',
+          isColumnOver && !wipOver
+            ? 'bg-primary-100/80 border-primary-300 shadow-inner'
+            : 'bg-gray-50/50',
         )}
       >
-        <SortableContext items={stories.map((s) => `${BOARD_STORY_PREFIX}${s.id}`)} strategy={verticalListSortingStrategy}>
-          {stories.map((story) => (
-            <StoryCard
-              key={story.id}
-              story={story}
-              projectId={story.projectId}
-              onUpdateType={onUpdateType}
-              onUpdatePriority={onUpdatePriority}
-              onMoveToBacklog={onMoveToBacklog}
-              onMoveToPlanbox={onMoveToPlanbox}
-            />
-          ))}
+        <div
+          ref={setTopDropRef}
+          data-testid={`column-top-drop-${column.id}`}
+          className={clsx(
+            'mb-2 h-6 rounded-md border border-dashed transition-colors',
+            isTopDropOver ? 'border-primary-300 bg-primary-50' : 'border-transparent bg-transparent',
+          )}
+          aria-hidden="true"
+        />
+
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          {itemIds.map((storyId) => {
+            const story = storyMap.get(storyId)
+            if (!story) return null
+            return (
+              <StoryCard
+                key={story.id}
+                story={story}
+                projectId={story.projectId}
+                onUpdateType={onUpdateType}
+                onUpdatePriority={onUpdatePriority}
+                onMoveToBacklog={onMoveToBacklog}
+                onMoveToPlanbox={onMoveToPlanbox}
+                onDeleteStory={onDeleteStory}
+                canDeleteStory={canDeleteStory}
+              />
+            )
+          })}
         </SortableContext>
 
         {stories.length === 0 && (
           <div className={clsx(
             'flex items-center justify-center h-16 text-xs rounded-lg border border-dashed transition-colors',
-            isOver ? 'border-primary-300 text-primary-500' : 'border-gray-200 text-gray-400',
-          )}>
-            {isOver ? 'Elengedés ide' : 'Húzz ide story-t'}
+            isColumnOver || isEmptyDropOver ? 'border-primary-300 text-primary-500' : 'border-gray-200 text-gray-400',
+          )}
+            ref={setEmptyDropRef}
+          >
+            {isColumnOver ? 'Elengedés ide' : 'Húzz ide story-t'}
           </div>
         )}
 
@@ -936,6 +1009,7 @@ export function BoardPage() {
   const orgId = currentOrg?.id ?? null
   const { projects: allProjects } = useProjects()
   const {
+    accessByProjectId,
     projects,
     loading: projectAccessLoading,
   } = useProjectAccessMap(allProjects)
@@ -963,6 +1037,10 @@ export function BoardPage() {
   const [closeSprintOpen, setCloseSprintOpen] = useState(false)
   const [closeIncompleteMode, setCloseIncompleteMode] = useState<'keep_on_board' | 'move_to_backlog'>('keep_on_board')
   const [sprintPanelOpen, setSprintPanelOpen] = useState(false)
+  // Optimistic column items during drag — maps columnId → story ID array.
+  // null = not dragging, use Firestore data as source of truth.
+  const [columnItems, setColumnItems] = useState<Record<string, string[]> | null>(null)
+  const columnItemsRef = useRef<Record<string, string[]> | null>(null)
   // Quick create state
   const [createColumnId, setCreateColumnId] = useState<string | null>(null)
 
@@ -973,6 +1051,7 @@ export function BoardPage() {
   const canAccessTeam = visibleTeams.some((visibleTeam) => visibleTeam.id === teamId)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
 
   useEffect(() => {
     if (!orgId) return
@@ -1010,7 +1089,7 @@ export function BoardPage() {
     if (!orgId || !teamId || !team || !canAccessTeam) return
     const unsub = subscribeToBoardStories(orgId, teamId, connectedProjectIds, setStories)
     return unsub
-  }, [orgId, teamId, team, canAccessTeam, connectedProjectIds, connectedProjectIdsKey])
+  }, [orgId, teamId, team, canAccessTeam, connectedProjectIdsKey])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1027,14 +1106,14 @@ export function BoardPage() {
             .sort((a, b) => {
               const aOrder = a.location === 'planbox' ? a.planboxOrder : a.backlogOrder
               const bOrder = b.location === 'planbox' ? b.planboxOrder : b.backlogOrder
-              return (aOrder ?? '').localeCompare(bOrder ?? '')
+              return compareFractionalKeys(aOrder, bOrder)
             }),
         }))
       }),
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIds, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIdsKey])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1052,7 +1131,7 @@ export function BoardPage() {
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIds, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIdsKey])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1067,7 +1146,7 @@ export function BoardPage() {
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIds, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIdsKey])
 
   useEffect(() => {
     if (!orgId || !teamId) return
@@ -1079,10 +1158,22 @@ export function BoardPage() {
 
   const columns = useMemo(() => {
     if (!team) return []
-    return [...team.boardConfig.columns].sort((a, b) => a.order.localeCompare(b.order))
+    return [...team.boardConfig.columns].sort((a, b) => compareFractionalKeys(a.order, b.order))
   }, [team])
 
   const columnIds = useMemo(() => columns.map((c) => c.id), [columns])
+  const resolveColumnDropId = useCallback((dropId: string): string | null => {
+    if (columnIds.includes(dropId)) return dropId
+    if (dropId.endsWith(EMPTY_COLUMN_DROP_SUFFIX)) {
+      const columnId = dropId.slice(0, -EMPTY_COLUMN_DROP_SUFFIX.length)
+      return columnIds.includes(columnId) ? columnId : null
+    }
+    if (dropId.endsWith(TOP_COLUMN_DROP_SUFFIX)) {
+      const columnId = dropId.slice(0, -TOP_COLUMN_DROP_SUFFIX.length)
+      return columnIds.includes(columnId) ? columnId : null
+    }
+    return null
+  }, [columnIds])
 
   const boardAssigneeOptions = useMemo(() => {
     const options = new Map<string, { id: string; name: string; photoUrl?: string | null }>()
@@ -1141,10 +1232,30 @@ export function BoardPage() {
       }
     }
     for (const [, list] of map) {
-      list.sort((a, b) => (a.columnOrder ?? '').localeCompare(b.columnOrder ?? ''))
+      list.sort((a, b) => compareFractionalKeys(a.columnOrder, b.columnOrder))
     }
     return map
   }, [filteredBoardStories, columns])
+
+  // Simple collision detection: prefer story cards under pointer, fall back to closestCenter.
+  // No dependencies → no stale closure issues.
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const filtered = args.droppableContainers.filter(
+      (c) => String(c.id) !== String(args.active.id),
+    )
+    const pw = pointerWithin({ ...args, droppableContainers: filtered })
+    if (pw.length > 0) {
+      // Prefer a story card hit for precise positioning within a column
+      const storyHit = pw.find((c) => String(c.id).startsWith(BOARD_STORY_PREFIX))
+      if (storyHit) return [storyHit]
+      const topDropHit = pw.find((c) => String(c.id).endsWith(TOP_COLUMN_DROP_SUFFIX))
+      if (topDropHit) return [topDropHit]
+      const emptyDropHit = pw.find((c) => String(c.id).endsWith(EMPTY_COLUMN_DROP_SUFFIX))
+      if (emptyDropHit) return [emptyDropHit]
+      return [pw[0]]
+    }
+    return closestCenter({ ...args, droppableContainers: filtered })
+  }, [])
 
   const totalBoardPoints = useMemo(
     () => filteredBoardStories.reduce((sum, story) => sum + (story.estimate ?? 0), 0),
@@ -1227,8 +1338,12 @@ export function BoardPage() {
     setExpandedProjectIds((prev) => {
       const validIds = connectedProjects.map((project) => project.id)
       const filtered = prev.filter((id) => validIds.includes(id))
-      if (filtered.length > 0) return filtered
-      return validIds.slice(0, 1)
+      const next = filtered.length > 0 ? filtered : validIds.slice(0, 1)
+      // Return the same reference if the IDs didn't actually change — prevents
+      // an infinite re-render loop when connectedProjects keeps producing a new
+      // empty [] on every Firestore update while team hasn't loaded yet.
+      if (next.length === prev.length && next.every((id, i) => prev[i] === id)) return prev
+      return next
     })
   }, [connectedProjects])
 
@@ -1263,74 +1378,229 @@ export function BoardPage() {
     )
   }
 
-  const handleDragStart = (event: DragStartEvent) => {
+  // ---------------------------------------------------------------------------
+  // Drag handlers — uses optimistic `columnItems` state for visual ordering
+  // during drag, Firestore as source of truth after drop.
+  // ---------------------------------------------------------------------------
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     const id = String(event.active.id)
+
+    // Set activeStory for DragOverlay
     if (id.startsWith(BOARD_STORY_PREFIX)) {
-      const storyId = id.replace(BOARD_STORY_PREFIX, '')
-      setActiveStory(stories.find((story) => story.id === storyId) ?? null)
+      const storyId = id.slice(BOARD_STORY_PREFIX.length)
+      setActiveStory(stories.find((s) => s.id === storyId) ?? null)
+    } else if (id.startsWith(BACKLOG_STORY_PREFIX)) {
+      const raw = id.slice(BACKLOG_STORY_PREFIX.length)
+      const [projectId, storyId] = raw.split(':')
+      setActiveStory(backlogStoriesByProject[projectId]?.find((s) => s.id === storyId) ?? null)
+    }
+
+    // Snapshot current Firestore state into optimistic local state
+    const items: Record<string, string[]> = {}
+    for (const [colId, colStories] of storiesByColumn) {
+      items[colId] = colStories.map((s) => s.id)
+    }
+    columnItemsRef.current = items
+    setColumnItems(items)
+  }, [stories, backlogStoriesByProject, storiesByColumn])
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over, collisions } = event
+    if (!over) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+
+    // Resolve active story ID (board story or backlog story)
+    const activeStoryId = activeId.startsWith(BOARD_STORY_PREFIX)
+      ? activeId.slice(BOARD_STORY_PREFIX.length)
+      : null // backlog stories don't participate in column item tracking
+
+    // Only handle cross-column transfers for board stories
+    if (!activeStoryId) return
+
+    const prev = columnItemsRef.current
+    if (!prev) return
+
+    // Find which column the active item is currently in
+    let activeCol: string | null = null
+    for (const colId of Object.keys(prev)) {
+      if (prev[colId].includes(activeStoryId)) { activeCol = colId; break }
+    }
+
+    // Find target column from over id
+    let overCol: string | null = null
+    let overIndex = -1
+    const resolvedColumnId = resolveColumnDropId(overId)
+    if (resolvedColumnId) {
+      // Hovering over the column droppable itself
+      overCol = resolvedColumnId
+      if (overId.endsWith(TOP_COLUMN_DROP_SUFFIX)) {
+        overIndex = 0
+      } else {
+        const activeRect = active.rect.current.translated
+        const overRect = over.rect
+        const activeCenterY = activeRect ? activeRect.top + activeRect.height / 2 : null
+        if (activeCenterY != null && activeCenterY <= overRect.top + 56) {
+          overIndex = 0
+        }
+      }
+    } else if (overId.startsWith(BOARD_STORY_PREFIX)) {
+      const overStoryId = overId.slice(BOARD_STORY_PREFIX.length)
+      for (const colId of Object.keys(prev)) {
+        const idx = prev[colId].indexOf(overStoryId)
+        if (idx >= 0) { overCol = colId; overIndex = idx; break }
+      }
+    }
+
+    if (!overCol) {
+      const collisionColumnId = collisions
+        ?.map((collision) => resolveColumnDropId(String(collision.id)))
+        .find((columnId): columnId is string => Boolean(columnId))
+      if (collisionColumnId) {
+        overCol = collisionColumnId
+      }
+    }
+
+    if (!overCol) return
+
+    if (activeCol === overCol) {
+      if (!activeCol) return
+
+      const activeIndex = prev[activeCol].indexOf(activeStoryId)
+      const targetIndex = overId.startsWith(BOARD_STORY_PREFIX) || overId.endsWith(TOP_COLUMN_DROP_SUFFIX) || (resolvedColumnId && overIndex === 0)
+        ? overIndex
+        : -1
+      if (activeIndex < 0 || targetIndex < 0 || activeIndex === targetIndex) return
+
+      const next = {
+        ...prev,
+        [activeCol]: arrayMove(prev[activeCol], activeIndex, targetIndex),
+      }
+      columnItemsRef.current = next
+      setColumnItems(next)
       return
     }
 
-    if (id.startsWith(BACKLOG_STORY_PREFIX)) {
-      const [, raw] = id.split(BACKLOG_STORY_PREFIX)
-      const [projectId, storyId] = raw.split(':')
-      const story = backlogStoriesByProject[projectId]?.find((item) => item.id === storyId) ?? null
-      setActiveStory(story)
-    }
-  }
+    // Cross-column transfer
+    const next = { ...prev }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
+    // Remove from source column
+    if (activeCol) {
+      next[activeCol] = prev[activeCol].filter((id) => id !== activeStoryId)
+    }
+
+    // Add to target column
+    const target = [...(prev[overCol] ?? [])]
+    if (overIndex >= 0) {
+      const insertIndex = (overId.endsWith(TOP_COLUMN_DROP_SUFFIX) || (resolvedColumnId && overIndex === 0))
+        ? 0
+        : overIndex + 1
+      target.splice(insertIndex, 0, activeStoryId)
+    } else {
+      target.push(activeStoryId)
+    }
+    next[overCol] = target
+    columnItemsRef.current = next
+    setColumnItems(next)
+  }, [columnIds, resolveColumnDropId])
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over, collisions } = event
+    const snapshot = columnItemsRef.current // capture latest optimistic snapshot before reset
+
+    // Always reset drag state
     setActiveStory(null)
-    if (!over || active.id === over.id || !currentOrg || !teamId) return
+    columnItemsRef.current = null
+    setColumnItems(null)
+
+    if (!over || !currentOrg || !teamId || !snapshot) return
 
     const activeId = String(active.id)
+    const overId = String(over.id)
+    const collisionColumnId = collisions
+      ?.map((collision) => resolveColumnDropId(String(collision.id)))
+      .find((columnId): columnId is string => Boolean(columnId))
+
+    // Identify the dragged story
     const isBacklogStory = activeId.startsWith(BACKLOG_STORY_PREFIX)
     const draggedStory = isBacklogStory
       ? (() => {
-          const [, raw] = activeId.split(BACKLOG_STORY_PREFIX)
+          const raw = activeId.slice(BACKLOG_STORY_PREFIX.length)
           const [projectId, storyId] = raw.split(':')
-          return backlogStoriesByProject[projectId]?.find((story) => story.id === storyId)
+          return backlogStoriesByProject[projectId]?.find((s) => s.id === storyId)
         })()
-      : stories.find((story) => `${BOARD_STORY_PREFIX}${story.id}` === activeId)
+      : stories.find((s) => `${BOARD_STORY_PREFIX}${s.id}` === activeId)
+
     if (!draggedStory) return
 
-    let targetColumnId: string | null = null
-    let targetList: Story[] = []
-
-    // Dropped over another story?
-    const overId = String(over.id)
-    const overStory = stories.find((story) => `${BOARD_STORY_PREFIX}${story.id}` === overId)
-    if (overStory) {
-      targetColumnId = overStory.columnId ?? null
-    } else if (columnIds.includes(overId)) {
-      // Dropped directly onto an empty column droppable
-      targetColumnId = overId
-    }
-
-    if (!targetColumnId) return
-    targetList = storiesByColumn.get(targetColumnId) ?? []
-
-    let newOrder: string
-    if (overStory) {
-      const overIdx = targetList.findIndex((s) => s.id === overStory.id)
-      const prevOrder = targetList[overIdx - 1]?.columnOrder ?? null
-      const nextOrder = targetList[overIdx]?.columnOrder ?? null
-      newOrder = keyBetween(prevOrder, nextOrder)
-    } else {
-      // Dropped on empty column — place at end
-      const lastOrder = targetList[targetList.length - 1]?.columnOrder ?? null
-      newOrder = keyBetween(lastOrder, null)
-    }
-
+    // --- Backlog → Board: use over.id to determine target column, append to end ---
     if (isBacklogStory) {
+      let targetColumnId: string | null = null
+      const resolvedColumnId = resolveColumnDropId(overId) ?? collisionColumnId
+      if (resolvedColumnId) {
+        targetColumnId = resolvedColumnId
+      } else if (overId.startsWith(BOARD_STORY_PREFIX)) {
+        const overStoryId = overId.slice(BOARD_STORY_PREFIX.length)
+        const overStory = stories.find((s) => s.id === overStoryId)
+        targetColumnId = overStory?.columnId ?? null
+      }
+      if (!targetColumnId) return
+
+      const colStories = storiesByColumn.get(targetColumnId) ?? []
+      const lastOrder = colStories[colStories.length - 1]?.columnOrder ?? null
+      let newOrder: string
+      try { newOrder = keyBetween(lastOrder, null) } catch { newOrder = keyBetween(null, null) }
+
       await moveStoryToBoard(currentOrg.id, draggedStory.projectId, draggedStory.id, teamId, targetColumnId, newOrder)
       toast.success('Story áthúzva a boardra!')
       return
     }
 
+    // --- Board → Board: determine position from optimistic snapshot ---
+    // Find which column the story ended up in
+    let targetColumnId: string | null = null
+    let finalIds: string[] = []
+    for (const [colId, ids] of Object.entries(snapshot)) {
+      if (ids.includes(draggedStory.id)) {
+        targetColumnId = colId
+        finalIds = ids
+        break
+      }
+    }
+
+    if (!targetColumnId) return
+
+    const originalIds = (storiesByColumn.get(draggedStory.columnId ?? '') ?? []).map((story) => story.id)
+    const posIndex = finalIds.indexOf(draggedStory.id)
+    if (posIndex < 0) return
+
+    if (
+      targetColumnId === draggedStory.columnId
+      && originalIds.length === finalIds.length
+      && originalIds.every((id, index) => id === finalIds[index])
+    ) {
+      return
+    }
+
+    // Cross-column move or same-column reorder: use optimistic snapshot position.
+    const colStories = (storiesByColumn.get(targetColumnId) ?? [])
+      .filter((s) => s.id !== draggedStory.id)
+
+    // Look up neighbors from the snapshot
+    const prevId = posIndex > 0 ? finalIds[posIndex - 1] : null
+    const nextId = posIndex < finalIds.length - 1 ? finalIds[posIndex + 1] : null
+
+    const prevOrder = prevId ? colStories.find((s) => s.id === prevId)?.columnOrder ?? null : null
+    const nextOrder = nextId ? colStories.find((s) => s.id === nextId)?.columnOrder ?? null : null
+
+    let newOrder: string
+    try { newOrder = keyBetween(prevOrder, nextOrder) }
+    catch { newOrder = keyBetween(prevOrder, null) }
+
     await moveStoryToColumn(currentOrg.id, draggedStory.projectId, draggedStory.id, teamId, targetColumnId, newOrder)
-  }
+  }, [stories, storiesByColumn, backlogStoriesByProject, currentOrg, teamId, columnIds, resolveColumnDropId])
 
   const handleAddStory = (columnId: string) => {
     setCreateColumnId(columnId)
@@ -1384,6 +1654,16 @@ export function BoardPage() {
   const handleQuickMoveToPlanbox = async (story: Story) => {
     if (!currentOrg) return
     await moveStoryOffBoard(currentOrg.id, story.projectId, story.id, 'planbox', keyBetween(story.planboxOrder ?? null, null))
+  }
+
+  const canDeleteStory = (story: Story) => canManage(accessByProjectId[story.projectId] ?? undefined)
+
+  const handleDeleteStory = async (story: Story) => {
+    if (!currentOrg || !canDeleteStory(story)) return
+    if (!confirm(`Biztosan törlöd ezt a story-t?\n\n${story.title}`)) return
+
+    await deleteStory(currentOrg.id, story.projectId, story.id)
+    toast.success('Story törölve.')
   }
 
   const executeCloseSprint = async () => {
@@ -1586,8 +1866,10 @@ export function BoardPage() {
       <div className="flex flex-1 overflow-hidden">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <BacklogPanel
@@ -1605,24 +1887,34 @@ export function BoardPage() {
           />
           <div className="flex-1 overflow-x-auto">
             <div className="flex gap-4 p-6 min-h-full">
-              {columns.map((col) => (
-                <BoardColumnView
-                  key={col.id}
-                  column={col}
-                  stories={storiesByColumn.get(col.id) ?? []}
-                  totalPoints={(storiesByColumn.get(col.id) ?? []).reduce((sum, story) => sum + (story.estimate ?? 0), 0)}
-                  onAddStory={handleAddStory}
-                  creating={createColumnId === col.id}
-                  projects={connectedProjectsForCreate}
-                  membersByProjectId={projectMembersByProject}
-                  onCreateStory={handleCreateStory}
-                  onCancelCreate={() => setCreateColumnId(null)}
-                  onUpdateType={handleQuickTypeUpdate}
-                  onUpdatePriority={handleQuickPriorityUpdate}
-                  onMoveToBacklog={handleQuickMoveToBacklog}
-                  onMoveToPlanbox={handleQuickMoveToPlanbox}
-                />
-              ))}
+              {columns.map((col) => {
+                const colStories = storiesByColumn.get(col.id) ?? []
+                // During drag use optimistic item order; otherwise derive from Firestore
+                const itemIds = columnItems
+                  ? (columnItems[col.id] ?? [])
+                  : colStories.map((s) => s.id)
+                return (
+                  <BoardColumnView
+                    key={col.id}
+                    column={col}
+                    stories={colStories}
+                    itemIds={itemIds}
+                    totalPoints={colStories.reduce((sum, story) => sum + (story.estimate ?? 0), 0)}
+                    onAddStory={handleAddStory}
+                    creating={createColumnId === col.id}
+                    projects={connectedProjectsForCreate}
+                    membersByProjectId={projectMembersByProject}
+                    onCreateStory={handleCreateStory}
+                    onCancelCreate={() => setCreateColumnId(null)}
+                    onUpdateType={handleQuickTypeUpdate}
+                    onUpdatePriority={handleQuickPriorityUpdate}
+                    onMoveToBacklog={handleQuickMoveToBacklog}
+                    onMoveToPlanbox={handleQuickMoveToPlanbox}
+                    onDeleteStory={handleDeleteStory}
+                    canDeleteStory={canDeleteStory}
+                  />
+                )
+              })}
               {columns.length === 0 && (
                 <div className="flex flex-1 items-center justify-center text-gray-400 text-sm">
                   Nincsenek oszlopok. Állítsd be a csapat beállításokban.

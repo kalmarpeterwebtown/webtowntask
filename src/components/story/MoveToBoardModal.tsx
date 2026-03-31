@@ -6,6 +6,7 @@ import { useOrgStore } from '@/stores/orgStore'
 import { useTeamAccessMap } from '@/hooks/useAccess'
 import { subscribeToTeams } from '@/services/team.service'
 import { moveStoryToBoard } from '@/services/story.service'
+import { compareFractionalKeys } from '@/utils/fractionalIndex'
 import { initialKey } from '@/utils/fractionalIndex'
 import type { Story, Team } from '@/types/models'
 
@@ -76,7 +77,7 @@ export function MoveToBoardModal({ story, isOpen, onClose }: Props) {
 
   const columns = selectedTeam?.boardConfig.columns
     .slice()
-    .sort((a, b) => a.order.localeCompare(b.order)) ?? []
+    .sort((a, b) => compareFractionalKeys(a.order, b.order)) ?? []
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Áthelyezés boardra" size="sm">

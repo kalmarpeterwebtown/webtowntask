@@ -4,18 +4,23 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
+  useDroppable,
   PointerSensor,
   useSensor,
   useSensors,
   useDraggable,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
   type DragOverEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
+  arrayMove,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { clsx } from 'clsx'
 import { ChevronDown, ChevronRight, Plus, Layout, Package, Archive, Link2, Tag as TagIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StoryRow } from '@/components/backlog/StoryRow'
@@ -25,12 +30,12 @@ import { useBacklog } from '@/hooks/useBacklog'
 import { useProjects } from '@/hooks/useProjects'
 import { useProjectAccessMap } from '@/hooks/useAccess'
 import { useOrgStore } from '@/stores/orgStore'
-import { moveStory, updateStory, createStory } from '@/services/story.service'
+import { createStory, deleteStory, moveStory, updateStory } from '@/services/story.service'
 import { subscribeToTags, createTag, addTagToStory } from '@/services/tag.service'
 import { subscribeToTeams } from '@/services/team.service'
 import { subscribeToProjectMemberships } from '@/services/access.service'
 import { keyBetween } from '@/utils/fractionalIndex'
-import { canWrite } from '@/utils/permissions'
+import { canManage, canWrite } from '@/utils/permissions'
 import { toast } from '@/stores/uiStore'
 import type { StoryLocation } from '@/types/enums'
 import type { Story, Tag, Team, ProjectMembership } from '@/types/models'
@@ -40,6 +45,8 @@ const PRESET_COLORS = [
   '#f97316', '#eab308', '#22c55e', '#06b6d4',
   '#3b82f6', '#64748b',
 ]
+
+const TOP_SECTION_DROP_SUFFIX = '__top-drop'
 
 const SECTION_CONFIG: {
   location: StoryLocation
@@ -233,6 +240,8 @@ interface SectionProps {
   onToggle: () => void
   onAddStory: (location: StoryLocation, afterOrder?: string) => void
   onEstimateSave: (storyId: string, estimate: number | null) => Promise<void>
+  canDelete: boolean
+  onDeleteStory: (story: Story) => void
   creating: boolean
   projectMembers: ProjectMembership[]
   onCreateStory: (location: StoryLocation, input: { title: string; estimate?: number; projectId: string; assigneeId?: string; assigneeName?: string }, afterOrder?: string) => Promise<void>
@@ -246,6 +255,8 @@ interface SectionProps {
 function BacklogSection({
   location, stories, projectId, readOnly, isOpen, onToggle, onAddStory,
   onEstimateSave,
+  canDelete,
+  onDeleteStory,
   creating,
   projectMembers,
   onCreateStory,
@@ -255,9 +266,14 @@ function BacklogSection({
 }: SectionProps) {
   const config = SECTION_CONFIG.find((s) => s.location === location)!
   const Icon = config.icon
+  const { setNodeRef: setTopDropRef, isOver: isTopDropOver } = useDroppable({ id: `${location}${TOP_SECTION_DROP_SUFFIX}` })
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+    <div
+      className="rounded-xl border border-gray-200 bg-white overflow-hidden"
+      data-testid={`backlog-section-${location}`}
+      data-section-location={location}
+    >
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
@@ -274,7 +290,17 @@ function BacklogSection({
       </button>
 
       {isOpen && (
-        <div className="border-t border-gray-100 px-4 py-3 space-y-1">
+        <div className="border-t border-gray-100 px-4 py-3 space-y-1" data-testid={`backlog-section-body-${location}`}>
+          <div
+            ref={setTopDropRef}
+            data-testid={`backlog-top-drop-${location}`}
+            className={clsx(
+              'mb-2 h-6 rounded-md border border-dashed transition-colors',
+              isTopDropOver ? 'border-primary-300 bg-primary-50' : 'border-transparent bg-transparent',
+            )}
+            aria-hidden="true"
+          />
+
           <SortableContext items={stories.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             {stories.map((story) => (
               <StoryRow
@@ -283,6 +309,8 @@ function BacklogSection({
                 projectId={projectId}
                 readOnly={readOnly}
                 onEstimateSave={onEstimateSave}
+                canDelete={canDelete}
+                onDelete={onDeleteStory}
                 tagMap={tagMap}
                 isTagDragging={isTagDragging}
                 isTagDropTarget={isTagDragging && overStoryId === story.id}
@@ -336,6 +364,7 @@ export function BacklogPage() {
   } = useProjectAccessMap(allProjects)
   const projectAccess = projectId ? accessByProjectId[projectId] ?? null : null
   const readOnly = !canWrite(projectAccess ?? undefined)
+  const canDeleteStory = canManage(projectAccess ?? undefined)
   const canAccessProject = visibleProjects.some((project) => project.id === projectId)
   const currentProject = useMemo(
     () => visibleProjects.find((project) => project.id === projectId) ?? null,
@@ -364,6 +393,21 @@ export function BacklogPage() {
   const [overStoryId, setOverStoryId] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const collisionDetection = useMemo<CollisionDetection>(() => (args) => {
+    const filtered = args.droppableContainers.filter((container) => String(container.id) !== String(args.active.id))
+    const pw = pointerWithin({ ...args, droppableContainers: filtered })
+    if (pw.length > 0) {
+      const storyHit = pw.find((container) => {
+        const id = String(container.id)
+        return !id.endsWith(TOP_SECTION_DROP_SUFFIX)
+      })
+      if (storyHit) return [storyHit]
+      const topDropHit = pw.find((container) => String(container.id).endsWith(TOP_SECTION_DROP_SUFFIX))
+      if (topDropHit) return [topDropHit]
+      return [pw[0]]
+    }
+    return closestCenter({ ...args, droppableContainers: filtered })
+  }, [])
 
   // Subscribe to tags
   useEffect(() => {
@@ -427,6 +471,14 @@ export function BacklogPage() {
     toast.success('Pontozás frissítve.')
   }
 
+  const handleDeleteStory = async (story: Story) => {
+    if (!orgId || !projectId || !canDeleteStory) return
+    if (!confirm(`Biztosan törlöd ezt a story-t?\n\n${story.title}`)) return
+
+    await deleteStory(orgId, projectId, story.id)
+    toast.success('Story törölve.')
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     const type = (event.active.data.current?.type as 'story' | 'tag') ?? 'story'
     setActiveType(type)
@@ -440,6 +492,12 @@ export function BacklogPage() {
     if (activeType === 'tag') {
       setOverStoryId(event.over ? String(event.over.id) : null)
     }
+  }
+
+  const handleDragCancel = () => {
+    setActiveType(null)
+    setActiveTag(null)
+    setOverStoryId(null)
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -471,15 +529,37 @@ export function BacklogPage() {
 
     const allStories = [...groups.board, ...groups.planbox, ...groups.backlog]
     const activeStory = allStories.find((s) => s.id === active.id)
+    if (!activeStory) return
+
+    const overId = String(over.id)
+    const topDropLocation = SECTION_CONFIG
+      .map((section) => section.location)
+      .find((location) => overId === `${location}${TOP_SECTION_DROP_SUFFIX}`) ?? null
     const overStory = allStories.find((s) => s.id === over.id)
-    if (!activeStory || !overStory) return
+    if (!overStory && !topDropLocation) return
 
-    const targetLocation = overStory.location as StoryLocation
+    const sourceLocation = activeStory.location as StoryLocation
+    const targetLocation = topDropLocation ?? (overStory!.location as StoryLocation)
+    const sourceList = groups[sourceLocation]
     const targetList = groups[targetLocation]
-    const overIdx = targetList.findIndex((s) => s.id === over.id)
+    const activeIdx = sourceList.findIndex((s) => s.id === active.id)
+    const overIdx = topDropLocation ? 0 : targetList.findIndex((s) => s.id === over.id)
+    if (activeIdx < 0 || overIdx < 0) return
 
-    const prevOrder = targetList[overIdx - 1]?.backlogOrder ?? targetList[overIdx - 1]?.planboxOrder ?? null
-    const nextOrder = overStory.backlogOrder ?? overStory.planboxOrder ?? null
+    const finalList = sourceLocation === targetLocation
+      ? arrayMove(targetList, activeIdx, overIdx)
+      : (() => {
+          const next = targetList.filter((story) => story.id !== activeStory.id)
+          next.splice(overIdx, 0, activeStory)
+          return next
+        })()
+    const newIdx = finalList.findIndex((story) => story.id === activeStory.id)
+    if (newIdx < 0) return
+
+    const prevStory = finalList[newIdx - 1] ?? null
+    const nextStory = finalList[newIdx + 1] ?? null
+    const prevOrder = prevStory?.backlogOrder ?? prevStory?.planboxOrder ?? null
+    const nextOrder = nextStory?.backlogOrder ?? nextStory?.planboxOrder ?? null
     const newOrder = keyBetween(prevOrder, nextOrder)
 
     await moveStory(currentOrg.id, projectId, activeStory.id, targetLocation, newOrder)
@@ -571,9 +651,10 @@ export function BacklogPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
+          onDragCancel={handleDragCancel}
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 items-start">
@@ -590,6 +671,8 @@ export function BacklogPage() {
                   onToggle={() => toggleSection(location)}
                   onAddStory={openAddStory}
                   onEstimateSave={handleEstimateSave}
+                  canDelete={canDeleteStory}
+                  onDeleteStory={handleDeleteStory}
                   creating={storyForm.open && storyForm.location === location}
                   projectMembers={projectMembers}
                   onCreateStory={handleCreateStory}

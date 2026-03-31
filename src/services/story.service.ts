@@ -1,4 +1,5 @@
 import {
+  getDocs,
   doc,
   updateDoc,
   onSnapshot,
@@ -7,10 +8,14 @@ import {
   orderBy,
   increment,
   runTransaction,
+  writeBatch,
 } from 'firebase/firestore'
+import { deleteObject, ref as storageRef } from 'firebase/storage'
 import { db, auth } from '@/config/firebase'
-import { storiesRef, storyRef, projectRef } from '@/utils/firestore'
+import { storage } from '@/config/firebase'
+import { attachmentsRef, commentsRef, projectRef, storyRef, storiesRef, tasksRef, worklogsRef } from '@/utils/firestore'
 import { initialKey, keyAfter } from '@/utils/fractionalIndex'
+import type { Attachment } from '@/types/models'
 import type { Story } from '@/types/models'
 import type { StoryType, StoryPriority, StoryLocation } from '@/types/enums'
 
@@ -165,6 +170,45 @@ export async function updateStory(
   })
 }
 
+export async function deleteStory(
+  orgId: string,
+  projectId: string,
+  storyId: string,
+): Promise<void> {
+  const [taskSnap, commentSnap, worklogSnap, attachmentSnap] = await Promise.all([
+    getDocs(tasksRef(orgId, projectId, storyId)),
+    getDocs(commentsRef(orgId, projectId, storyId)),
+    getDocs(worklogsRef(orgId, projectId, storyId)),
+    getDocs(attachmentsRef(orgId, projectId, storyId)),
+  ])
+
+  const attachments = attachmentSnap.docs.map((attachmentDoc) => ({
+    id: attachmentDoc.id,
+    ...attachmentDoc.data(),
+  } as Attachment))
+
+  await Promise.allSettled(
+    attachments
+      .filter((attachment) => Boolean(attachment.storageUrl))
+      .map((attachment) => deleteObject(storageRef(storage, attachment.storageUrl))),
+  )
+
+  const batch = writeBatch(db)
+  taskSnap.docs.forEach((taskDoc) => batch.delete(taskDoc.ref))
+  commentSnap.docs.forEach((commentDoc) => batch.delete(commentDoc.ref))
+  worklogSnap.docs.forEach((worklogDoc) => batch.delete(worklogDoc.ref))
+  attachmentSnap.docs.forEach((attachmentDoc) => batch.delete(attachmentDoc.ref))
+  await batch.commit()
+
+  await runTransaction(db, async (tx) => {
+    tx.delete(storyRef(orgId, projectId, storyId))
+    tx.update(projectRef(orgId, projectId), {
+      storyCount: increment(-1),
+      updatedAt: serverTimestamp(),
+    })
+  })
+}
+
 /**
  * Story áthelyezése másik szekcióba vagy máshova a listán belül.
  * Egyetlen Firestore write.
@@ -176,14 +220,13 @@ export async function moveStory(
   newLocation: StoryLocation,
   newOrder: string,
 ): Promise<void> {
-  const orderField =
-    newLocation === 'backlog' ? 'backlogOrder' :
-    newLocation === 'planbox' ? 'planboxOrder' :
-    'columnOrder'
-
   await updateDoc(storyRef(orgId, projectId, storyId), {
     location: newLocation,
-    [orderField]: newOrder,
+    backlogOrder: newLocation === 'backlog' ? newOrder : null,
+    planboxOrder: newLocation === 'planbox' ? newOrder : null,
+    columnOrder: null,
+    boardId: null,
+    columnId: null,
     updatedAt: serverTimestamp(),
   })
 }

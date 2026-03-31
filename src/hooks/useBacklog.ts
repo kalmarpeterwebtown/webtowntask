@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOrgStore } from '@/stores/orgStore'
 import { subscribeToBacklog } from '@/services/story.service'
+import { compareFractionalKeys } from '@/utils/fractionalIndex'
 import type { Story } from '@/types/models'
 import type { StoryLocation } from '@/types/enums'
 
@@ -37,11 +38,9 @@ export function useBacklog(projectId: string, enabled = true) {
         else result.backlog.push(story)
       }
       // Sort each group by their fractional index key (client-side)
-      const cmp = (a: string | null | undefined, b: string | null | undefined) =>
-        (a ?? '').localeCompare(b ?? '')
-      result.backlog.sort((a, b) => cmp(a.backlogOrder, b.backlogOrder))
-      result.planbox.sort((a, b) => cmp(a.planboxOrder, b.planboxOrder))
-      result.board.sort((a, b) => cmp(a.columnOrder, b.columnOrder))
+      result.backlog.sort((a, b) => compareFractionalKeys(a.backlogOrder, b.backlogOrder))
+      result.planbox.sort((a, b) => compareFractionalKeys(a.planboxOrder, b.planboxOrder))
+      result.board.sort((a, b) => compareFractionalKeys(a.columnOrder, b.columnOrder))
       setSnapshot({
         orgId,
         projectId,

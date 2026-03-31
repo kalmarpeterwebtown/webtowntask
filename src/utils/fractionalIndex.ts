@@ -26,3 +26,12 @@ export function initialKey(): string {
 export function nKeysBetween(a: string | null, b: string | null, n: number): string[] {
   return generateNKeysBetween(a, b, n)
 }
+
+/** Fractional keys must use raw lexicographic ordering, not locale-aware compare. */
+export function compareFractionalKeys(a: string | null | undefined, b: string | null | undefined): number {
+  const left = a ?? ''
+  const right = b ?? ''
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
+}

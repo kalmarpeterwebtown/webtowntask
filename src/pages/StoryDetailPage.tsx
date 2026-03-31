@@ -228,6 +228,7 @@ export function StoryDetailPage() {
   const [storyDescriptionDraft, setStoryDescriptionDraft] = useState('')
   const [savingStoryDescription, setSavingStoryDescription] = useState(false)
   const [editingTaskDescriptionId, setEditingTaskDescriptionId] = useState<string | null>(null)
+  const [expandedTaskDescriptionId, setExpandedTaskDescriptionId] = useState<string | null>(null)
   const [taskDescriptionDraftById, setTaskDescriptionDraftById] = useState<Record<string, string>>({})
   const [descriptionMentionQuery, setDescriptionMentionQuery] = useState<string | null>(null)
   const [commentMentionQuery, setCommentMentionQuery] = useState<string | null>(null)
@@ -531,11 +532,13 @@ export function StoryDetailPage() {
     const draft = (taskDescriptionDraftById[task.id] ?? '').trim()
     if ((task.description ?? '') === draft) {
       setEditingTaskDescriptionId(null)
+      setExpandedTaskDescriptionId(null)
       return
     }
 
     await updateTaskDescription(currentOrg.id, projectId, storyId, task.id, draft)
     setEditingTaskDescriptionId(null)
+    setExpandedTaskDescriptionId(null)
   }
 
   const submitStoryWorklog = async () => {
@@ -773,12 +776,24 @@ export function StoryDetailPage() {
                     </button>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className={clsx(
-                          'flex-1 text-sm',
-                          task.isDone ? 'line-through text-gray-400' : 'text-gray-700',
-                        )}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextExpanded = expandedTaskDescriptionId === task.id ? null : task.id
+                            setExpandedTaskDescriptionId(nextExpanded)
+                            if (nextExpanded === null) {
+                              setEditingTaskDescriptionId(null)
+                            } else if (!readOnly) {
+                              setEditingTaskDescriptionId(task.id)
+                            }
+                          }}
+                          className={clsx(
+                            'flex-1 text-left text-sm',
+                            task.isDone ? 'line-through text-gray-400' : 'text-gray-700',
+                          )}
+                        >
                           {task.title}
-                        </span>
+                        </button>
                         {canViewWorklogs && (
                           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
                             {minutesToDisplay(task.totalWorklogMinutes ?? 0)}
@@ -811,25 +826,29 @@ export function StoryDetailPage() {
                           </button>
                         </div>
                       )}
-                      <div className="mt-2">
-                        {readOnly && !(task.description ?? '').trim() ? null : (
-                          <textarea
-                            value={taskDescriptionDraftById[task.id] ?? ''}
-                            onFocus={() => setEditingTaskDescriptionId(task.id)}
-                            onChange={(e) => setTaskDescriptionDraftById((prev) => ({ ...prev, [task.id]: e.target.value }))}
-                            onBlur={() => void handleSaveTaskDescription(task)}
-                            readOnly={readOnly}
-                            rows={editingTaskDescriptionId === task.id || (task.description ?? '').length > 0 ? 4 : 2}
-                            placeholder="Task leírása..."
-                            className={clsx(
-                              'mt-0.5 min-h-[92px] w-full rounded-lg border px-3 py-2 text-sm outline-none',
-                              readOnly
-                                ? 'border-transparent bg-transparent text-gray-500'
-                                : 'border-gray-200 bg-gray-50 text-gray-600 focus:border-primary-500 focus:bg-white',
-                            )}
-                          />
-                        )}
-                      </div>
+                      {expandedTaskDescriptionId === task.id && (
+                        <div className="mt-2">
+                          {readOnly ? (
+                            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                              {(task.description ?? '').trim() || 'Nincs task leírás.'}
+                            </div>
+                          ) : (
+                            <textarea
+                              value={taskDescriptionDraftById[task.id] ?? ''}
+                              onFocus={() => {
+                                setExpandedTaskDescriptionId(task.id)
+                                setEditingTaskDescriptionId(task.id)
+                              }}
+                              onChange={(e) => setTaskDescriptionDraftById((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                              onBlur={() => void handleSaveTaskDescription(task)}
+                              rows={4}
+                              placeholder="Task leírása..."
+                              className="mt-0.5 min-h-[110px] w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 outline-none focus:border-primary-500 focus:bg-white"
+                              autoFocus={editingTaskDescriptionId === task.id}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0">
                       <button

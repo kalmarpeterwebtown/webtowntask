@@ -10,6 +10,7 @@ import { teamRef } from '@/utils/firestore'
 import { serverTimestamp } from 'firebase/firestore'
 import { useProjects } from '@/hooks/useProjects'
 import { ROUTES } from '@/config/constants'
+import { compareFractionalKeys } from '@/utils/fractionalIndex'
 import type { Team, BoardColumn } from '@/types/models'
 
 export function TeamSettingsPage() {
@@ -103,7 +104,7 @@ export function TeamSettingsPage() {
   const handleMoveColumn = async (colId: string, direction: 'left' | 'right') => {
     if (!currentOrg || !teamId || !team) return
 
-    const sorted = [...team.boardConfig.columns].sort((a, b) => a.order.localeCompare(b.order))
+    const sorted = [...team.boardConfig.columns].sort((a, b) => compareFractionalKeys(a.order, b.order))
     const index = sorted.findIndex((column) => column.id === colId)
     if (index < 0) return
 
@@ -130,7 +131,7 @@ export function TeamSettingsPage() {
     )
   }
 
-  const columns = [...team.boardConfig.columns].sort((a, b) => a.order.localeCompare(b.order))
+  const columns = [...team.boardConfig.columns].sort((a, b) => compareFractionalKeys(a.order, b.order))
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-8">
