@@ -154,7 +154,8 @@ service cloud.firestore {
         allow delete: if isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read: if canReadProject(orgDocId, projectId);
+          allow read: if canReadProject(orgDocId, projectId) ||
+            (isSignedIn() && memberId == uid());
           allow create, update, delete: if canManageProject(orgDocId, projectId);
         }
 
@@ -236,7 +237,8 @@ service cloud.firestore {
         allow delete: if isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read: if canReadTeam(orgDocId, teamId);
+          allow read: if canReadTeam(orgDocId, teamId) ||
+            (isSignedIn() && memberId == uid());
           allow create, update, delete: if canManageTeam(orgDocId, teamId);
         }
 

@@ -1,5 +1,6 @@
 import {
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   onSnapshot,
@@ -94,4 +95,62 @@ export function subscribeToProjects(
     console.error('subscribeToProjects error:', error)
     onError?.(error)
   })
+}
+
+export function subscribeProjectsByIds(
+  orgId: string,
+  projectIds: string[],
+  callback: (projects: Project[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  if (projectIds.length === 0) {
+    callback([])
+    return () => {}
+  }
+
+  const projectsMap = new Map<string, Project>()
+
+  const emit = () => {
+    callback(
+      Array.from(projectsMap.values())
+        .filter((project) => project.status !== 'archived')
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() ?? 0
+          const bTime = b.createdAt?.toMillis?.() ?? 0
+          return aTime - bTime
+        }),
+    )
+  }
+
+  const unsubs = projectIds.map((projectId) =>
+    onSnapshot(projectRef(orgId, projectId), async (snap) => {
+      if (!snap.exists()) {
+        projectsMap.delete(projectId)
+        emit()
+        return
+      }
+
+      const project = { id: snap.id, ...snap.data() } as Project
+      projectsMap.set(projectId, project)
+      emit()
+    }, async (error) => {
+      // As a safety fallback, try a one-shot read to distinguish transient
+      // listener issues from a missing document.
+      try {
+        const snap = await getDoc(projectRef(orgId, projectId))
+        if (snap.exists()) {
+          projectsMap.set(projectId, { id: snap.id, ...snap.data() } as Project)
+          emit()
+          return
+        }
+      } catch {
+        // Keep the original listener error for diagnostics.
+      }
+
+      console.error('subscribeProjectsByIds error:', error)
+      onError?.(error)
+    }),
+  )
+
+  return () => unsubs.forEach((unsub) => unsub())
 }

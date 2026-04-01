@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
+import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
-import { subscribeToProjects } from '@/services/project.service'
+import { subscribeToCurrentUserProjectIds } from '@/services/access.service'
+import { subscribeProjectsByIds, subscribeToProjects } from '@/services/project.service'
+import { isOrgAdmin } from '@/utils/permissions'
 import type { Project } from '@/types/models'
 
 export function useProjects() {
-  const { currentOrg, loading: orgLoading } = useOrgStore()
+  const { currentOrg, loading: orgLoading, orgRole } = useOrgStore()
+  const { firebaseUser } = useAuthStore()
   const orgId = currentOrg?.id ?? null
+  const userId = firebaseUser?.uid ?? null
+  const admin = isOrgAdmin(orgRole ?? undefined)
   const [snapshot, setSnapshot] = useState<{
     orgId: string | null
     projects: Project[]
@@ -21,32 +27,56 @@ export function useProjects() {
   useEffect(() => {
     if (!orgId) return
 
-    const unsub = subscribeToProjects(
+    const setProjects = (projects: Project[]) => {
+      setSnapshot({
+        orgId,
+        projects,
+        ready: true,
+        error: null,
+      })
+    }
+
+    const setError = () => {
+      setSnapshot({
+        orgId,
+        projects: [],
+        ready: true,
+        error: 'A projektek betöltése átmenetileg nem sikerült.',
+      })
+    }
+
+    if (admin) {
+      return subscribeToProjects(orgId, setProjects, setError)
+    }
+
+    if (!userId) return
+
+    let unsubscribeProjects: (() => void) | null = null
+
+    const unsubscribeMemberships = subscribeToCurrentUserProjectIds(
       orgId,
-      (data) => {
-        setSnapshot({
+      userId,
+      (projectIds) => {
+        unsubscribeProjects?.()
+        setSnapshot((prev) => ({
+          ...prev,
           orgId,
-          projects: data,
-          ready: true,
+          ready: false,
           error: null,
-        })
-      },
-      () => {
-        setSnapshot({
-          orgId,
-          projects: [],
-          ready: true,
-          error: 'A projektek betöltése átmenetileg nem sikerült.',
-        })
+        }))
+        unsubscribeProjects = subscribeProjectsByIds(orgId, projectIds, setProjects, setError)
       },
     )
 
-    return unsub
-  }, [orgId])
+    return () => {
+      unsubscribeProjects?.()
+      unsubscribeMemberships()
+    }
+  }, [admin, orgId, userId])
 
   return {
-    projects: snapshot.orgId === orgId ? snapshot.projects : [],
-    loading: orgLoading || (orgId !== null && (snapshot.orgId !== orgId || !snapshot.ready)),
-    error: snapshot.orgId === orgId ? snapshot.error : null,
+    projects: !userId ? [] : snapshot.orgId === orgId ? snapshot.projects : [],
+    loading: orgLoading || (!!userId && orgId !== null && (snapshot.orgId !== orgId || !snapshot.ready)),
+    error: !userId ? null : snapshot.orgId === orgId ? snapshot.error : null,
   }
 }

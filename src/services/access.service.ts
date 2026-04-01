@@ -1,9 +1,13 @@
 import {
+  collectionGroup,
   deleteDoc,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
+  where,
 } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import {
   projectMemberRef,
   projectMembersRef,
@@ -24,6 +28,31 @@ type MemberIdentity = {
   displayName: string
   email: string
   photoUrl?: string
+}
+
+export function subscribeToCurrentUserProjectIds(
+  orgId: string,
+  userId: string,
+  callback: (projectIds: string[]) => void,
+): () => void {
+  const q = query(
+    collectionGroup(db, 'memberships'),
+    where('userId', '==', userId),
+  )
+
+  return onSnapshot(q, (snap) => {
+    const projectIds = snap.docs
+      .map((membershipDoc) => membershipDoc.ref.path.split('/'))
+      .filter((segments) =>
+        segments[0] === 'organizations'
+        && segments[1] === orgId
+        && segments[2] === 'projects'
+        && segments[4] === 'memberships',
+      )
+      .map((segments) => segments[3])
+
+    callback(Array.from(new Set(projectIds)))
+  })
 }
 
 export function subscribeToProjectMemberships(
