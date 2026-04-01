@@ -17,11 +17,15 @@ function buildIdKey(ids: string[]) {
 }
 
 export function useProjectAccessMap(projects: Project[]) {
-  const { currentOrg, orgRole } = useOrgStore()
+  const { currentOrg, memberships, orgRole } = useOrgStore()
   const { firebaseUser } = useAuthStore()
   const orgId = currentOrg?.id ?? null
   const userId = firebaseUser?.uid ?? null
-  const isAdmin = isOrgAdmin(orgRole ?? undefined)
+  const membershipRole = orgId
+    ? memberships.find((membership) => membership.id === orgId)?.role
+    : undefined
+  const effectiveOrgRole = orgRole ?? membershipRole
+  const isAdmin = isOrgAdmin(effectiveOrgRole)
   const projectIds = useMemo(() => projects.map((project) => project.id), [projects])
   const projectIdsKey = useMemo(() => buildIdKey(projectIds), [projectIds])
   const [accessByProjectId, setAccessByProjectId] = useState<Record<string, AccessLevel | null>>({})
@@ -68,11 +72,15 @@ export function useProjectAccessMap(projects: Project[]) {
 }
 
 export function useTeamAccessMap(teams: Team[]) {
-  const { currentOrg, orgRole } = useOrgStore()
+  const { currentOrg, memberships, orgRole } = useOrgStore()
   const { firebaseUser } = useAuthStore()
   const orgId = currentOrg?.id ?? null
   const userId = firebaseUser?.uid ?? null
-  const isAdmin = isOrgAdmin(orgRole ?? undefined)
+  const membershipRole = orgId
+    ? memberships.find((membership) => membership.id === orgId)?.role
+    : undefined
+  const effectiveOrgRole = orgRole ?? membershipRole
+  const isAdmin = isOrgAdmin(effectiveOrgRole)
   const teamIds = useMemo(() => teams.map((team) => team.id), [teams])
   const teamIdsKey = useMemo(() => buildIdKey(teamIds), [teamIds])
   const [accessByTeamId, setAccessByTeamId] = useState<Record<string, AccessLevel | null>>({})

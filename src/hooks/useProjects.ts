@@ -7,11 +7,15 @@ import { isOrgAdmin } from '@/utils/permissions'
 import type { Project } from '@/types/models'
 
 export function useProjects() {
-  const { currentOrg, loading: orgLoading, orgRole } = useOrgStore()
+  const { currentOrg, loading: orgLoading, memberships, orgRole } = useOrgStore()
   const { firebaseUser } = useAuthStore()
   const orgId = currentOrg?.id ?? null
   const userId = firebaseUser?.uid ?? null
-  const admin = isOrgAdmin(orgRole ?? undefined)
+  const membershipRole = orgId
+    ? memberships.find((membership) => membership.id === orgId)?.role
+    : undefined
+  const effectiveOrgRole = orgRole ?? membershipRole
+  const admin = isOrgAdmin(effectiveOrgRole)
   const [snapshot, setSnapshot] = useState<{
     orgId: string | null
     projects: Project[]
@@ -70,7 +74,9 @@ export function useProjects() {
 
     return () => {
       unsubscribeProjects?.()
-      unsubscribeMemberships()
+      if (typeof unsubscribeMemberships === 'function') {
+        unsubscribeMemberships()
+      }
     }
   }, [admin, orgId, userId])
 
