@@ -7,6 +7,7 @@ import { AuthShell } from './LoginPage'
 import { registerWithEmail, signInWithGoogle } from '@/services/auth.service'
 import { ROUTES } from '@/config/constants'
 import { resolvePostAuthRedirect } from '@/utils/authRedirect'
+import { getAuthErrorMessage } from '@/utils/authErrorMessage'
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -34,13 +35,8 @@ export function RegisterPage() {
     try {
       await registerWithEmail(email, password, displayName)
       navigate(redirectTo, { replace: true })
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code
-      if (code === 'auth/email-already-in-use') {
-        setError('Ez az email cím már regisztrált.')
-      } else {
-        setError('Regisztráció sikertelen. Próbáld újra.')
-      }
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(error, 'Regisztráció sikertelen. Próbáld újra.'))
     } finally {
       setLoading(false)
     }
@@ -50,8 +46,8 @@ export function RegisterPage() {
     try {
       await signInWithGoogle()
       navigate(redirectTo, { replace: true })
-    } catch {
-      setError('Google bejelentkezés sikertelen.')
+    } catch (error) {
+      setError(getAuthErrorMessage(error, 'Google bejelentkezés sikertelen.'))
     }
   }
 

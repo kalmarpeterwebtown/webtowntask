@@ -7,6 +7,7 @@ import { WebtownLogo } from '@/components/branding/WebtownLogo'
 import { signInWithEmail, signInWithGoogle } from '@/services/auth.service'
 import { ROUTES } from '@/config/constants'
 import { resolvePostAuthRedirect } from '@/utils/authRedirect'
+import { getAuthErrorMessage } from '@/utils/authErrorMessage'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -29,8 +30,8 @@ export function LoginPage() {
     try {
       await signInWithEmail(email, password)
       navigate(from, { replace: true })
-    } catch {
-      setError('Hibás email cím vagy jelszó.')
+    } catch (error) {
+      setError(getAuthErrorMessage(error, 'Hibás email cím vagy jelszó.'))
     } finally {
       setLoading(false)
     }
@@ -42,8 +43,8 @@ export function LoginPage() {
     try {
       await signInWithGoogle()
       navigate(from, { replace: true })
-    } catch {
-      setError('Google bejelentkezés sikertelen.')
+    } catch (error) {
+      setError(getAuthErrorMessage(error, 'Google bejelentkezés sikertelen.'))
     } finally {
       setGoogleLoading(false)
     }
