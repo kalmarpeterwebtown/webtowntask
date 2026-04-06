@@ -1083,13 +1083,11 @@ export function BoardPage() {
     const visibleProjectIds = new Set(projects.map((project) => project.id))
     return (team.connectedProjectIds ?? []).filter((projectId) => visibleProjectIds.has(projectId))
   }, [team, projects])
-  const connectedProjectIdsKey = connectedProjectIds.join(',')
-
   useEffect(() => {
     if (!orgId || !teamId || !team || !canAccessTeam) return
     const unsub = subscribeToBoardStories(orgId, teamId, connectedProjectIds, setStories)
     return unsub
-  }, [orgId, teamId, team, canAccessTeam, connectedProjectIdsKey])
+  }, [orgId, teamId, team, canAccessTeam, connectedProjectIds])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1113,7 +1111,7 @@ export function BoardPage() {
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIds])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1131,7 +1129,7 @@ export function BoardPage() {
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIds])
 
   useEffect(() => {
     if (!orgId || !canAccessTeam || connectedProjectIds.length === 0) {
@@ -1146,7 +1144,7 @@ export function BoardPage() {
     )
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [orgId, canAccessTeam, connectedProjectIdsKey])
+  }, [orgId, canAccessTeam, connectedProjectIds])
 
   useEffect(() => {
     if (!orgId || !teamId) return
@@ -1504,7 +1502,7 @@ export function BoardPage() {
     next[overCol] = target
     columnItemsRef.current = next
     setColumnItems(next)
-  }, [columnIds, resolveColumnDropId])
+  }, [resolveColumnDropId])
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over, collisions } = event
@@ -1600,7 +1598,7 @@ export function BoardPage() {
     catch { newOrder = keyBetween(prevOrder, null) }
 
     await moveStoryToColumn(currentOrg.id, draggedStory.projectId, draggedStory.id, teamId, targetColumnId, newOrder)
-  }, [stories, storiesByColumn, backlogStoriesByProject, currentOrg, teamId, columnIds, resolveColumnDropId])
+  }, [stories, storiesByColumn, backlogStoriesByProject, currentOrg, teamId, resolveColumnDropId])
 
   const handleAddStory = (columnId: string) => {
     setCreateColumnId(columnId)
