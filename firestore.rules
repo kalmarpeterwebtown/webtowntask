@@ -5,6 +5,9 @@ service cloud.firestore {
     // ── Helpers ────────────────────────────────────────────────────────────
     function uid() { return request.auth.uid; }
     function isSignedIn() { return request.auth != null; }
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.platformRole == 'super_admin';
+    }
 
     // Check membership via Firestore doc (no custom claims needed for MVP)
     function isMember(orgDocId) {
@@ -93,35 +96,57 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(targetUserId));
     }
 
+    // Collection group lekérdezésekhez a super admin jogosultságot
+    // külön recursive match-csel is ki kell engedni.
+    match /{path=**}/members/{memberId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/memberships/{memberId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/invitations/{inviteId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /organizations/{orgDocId}/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       // Allow any signed-in user to read profiles (for assignee display)
       allow read: if isSignedIn();
       allow create: if isSignedIn() && uid() == userId;
-      allow update: if isSignedIn() && uid() == userId;
-      allow delete: if false;
+      allow update: if isSuperAdmin() || (isSignedIn() && uid() == userId);
+      allow delete: if isSuperAdmin();
 
       match /notifications/{notifId} {
-        allow read: if isSignedIn() && uid() == userId;
+        allow read: if isSuperAdmin() || (isSignedIn() && uid() == userId);
         allow create: if (isSignedIn() && uid() == userId) || isValidMentionNotification(userId);
-        allow update, delete: if isSignedIn() && uid() == userId;
+        allow update, delete: if isSuperAdmin() || (isSignedIn() && uid() == userId);
       }
 
       match /orgMemberships/{orgDocId} {
-        allow read, write: if isSignedIn() && uid() == userId;
+        allow read, write: if isSuperAdmin() || (isSignedIn() && uid() == userId);
       }
     }
 
     // ── Organizations ──────────────────────────────────────────────────────
     match /organizations/{orgDocId} {
-      allow read: if isMember(orgDocId);
+      allow read: if isSuperAdmin() || isMember(orgDocId);
       allow create: if isSignedIn();   // first org — no membership yet
-      allow update: if isAdmin(orgDocId);
-      allow delete: if false;
+      allow update: if isSuperAdmin() || isAdmin(orgDocId);
+      allow delete: if isSuperAdmin();
 
       // Org members
       match /members/{memberId} {
-        allow read: if isMember(orgDocId);
+        allow read: if isSuperAdmin() || isMember(orgDocId);
         // Allow a user to add themselves as owner when they create the org
         allow create: if isSignedIn() && memberId == uid() &&
           get(/databases/$(database)/documents/organizations/$(orgDocId)).data.createdBy == uid();
@@ -131,15 +156,15 @@ service cloud.firestore {
           request.resource.data.keys().hasAll(['invitationToken']) &&
           invitationIsPending(orgDocId, request.resource.data.invitationToken);
         // Admins can manage all member docs
-        allow update, delete: if isAdmin(orgDocId);
+        allow update, delete: if isSuperAdmin() || isAdmin(orgDocId);
       }
 
       // Invitations
       match /invitations/{inviteId} {
-        allow read: if isAdmin(orgDocId) ||
+        allow read: if isSuperAdmin() || isAdmin(orgDocId) ||
           (isSignedIn() && resource.data.status == 'pending');
-        allow create, delete: if isAdmin(orgDocId);
-        allow update: if isAdmin(orgDocId) ||
+        allow create, delete: if isSuperAdmin() || isAdmin(orgDocId);
+        allow update: if isSuperAdmin() || isAdmin(orgDocId) ||
           (isSignedIn() &&
             invitationIsPending(orgDocId, inviteId) &&
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']) &&
@@ -148,15 +173,15 @@ service cloud.firestore {
 
       // ── Projects ──────────────────────────────────────────────────────────
       match /projects/{projectId} {
-        allow read: if canReadProject(orgDocId, projectId);
-        allow create: if isAdmin(orgDocId);
-        allow update: if canManageProject(orgDocId, projectId);
-        allow delete: if isAdmin(orgDocId);
+        allow read: if isSuperAdmin() || canReadProject(orgDocId, projectId);
+        allow create: if isSuperAdmin() || isAdmin(orgDocId);
+        allow update: if isSuperAdmin() || canManageProject(orgDocId, projectId);
+        allow delete: if isSuperAdmin() || isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read: if canReadProject(orgDocId, projectId) ||
+          allow read: if isSuperAdmin() || canReadProject(orgDocId, projectId) ||
             (isSignedIn() && memberId == uid());
-          allow create, update, delete: if canManageProject(orgDocId, projectId);
+          allow create, update, delete: if isSuperAdmin() || canManageProject(orgDocId, projectId);
         }
 
         // ── Stories ───────────────────────────────────────────────────────
@@ -231,15 +256,15 @@ service cloud.firestore {
 
       // ── Teams ─────────────────────────────────────────────────────────────
       match /teams/{teamId} {
-        allow read: if canReadTeam(orgDocId, teamId);
-        allow create: if isAdmin(orgDocId);
-        allow update: if canManageTeam(orgDocId, teamId);
-        allow delete: if isAdmin(orgDocId);
+        allow read: if isSuperAdmin() || canReadTeam(orgDocId, teamId);
+        allow create: if isSuperAdmin() || isAdmin(orgDocId);
+        allow update: if isSuperAdmin() || canManageTeam(orgDocId, teamId);
+        allow delete: if isSuperAdmin() || isAdmin(orgDocId);
 
         match /memberships/{memberId} {
-          allow read: if canReadTeam(orgDocId, teamId) ||
+          allow read: if isSuperAdmin() || canReadTeam(orgDocId, teamId) ||
             (isSignedIn() && memberId == uid());
-          allow create, update, delete: if canManageTeam(orgDocId, teamId);
+          allow create, update, delete: if isSuperAdmin() || canManageTeam(orgDocId, teamId);
         }
 
         match /sprints/{sprintId} {

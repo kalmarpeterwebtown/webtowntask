@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import {
   DndContext,
   DragOverlay,
@@ -42,7 +43,7 @@ import { toast } from '@/stores/uiStore'
 import { ROUTES, TYPE_COLORS, PRIORITY_COLORS } from '@/config/constants'
 import { keyBetween, compareFractionalKeys } from '@/utils/fractionalIndex'
 import { storyRef, tasksRef, sprintsRef } from '@/utils/firestore'
-import { canManage } from '@/utils/permissions'
+import { canManage, canWrite } from '@/utils/permissions'
 import type { Team, BoardColumn, Story, Tag, Task, ProjectMembership, Sprint } from '@/types/models'
 
 const BOARD_STORY_PREFIX = 'board-story:'
@@ -573,6 +574,8 @@ function BoardColumnView({
   stories,
   itemIds,
   totalPoints,
+  canEditWip,
+  onSaveWipLimit,
   onAddStory,
   creating,
   projects,
@@ -590,6 +593,8 @@ function BoardColumnView({
   stories: Story[]
   itemIds: string[]
   totalPoints: number
+  canEditWip: boolean
+  onSaveWipLimit: (columnId: string, value: string) => Promise<void>
   onAddStory: (columnId: string) => void
   creating: boolean
   projects: { id: string; name: string; prefix: string }[]
@@ -604,9 +609,11 @@ function BoardColumnView({
   canDeleteStory: (story: Story) => boolean
 }) {
   const wipOver = column.wipLimit != null && stories.length > column.wipLimit
+  const [wipDraft, setWipDraft] = useState(column.wipLimit?.toString() ?? '')
   const { setNodeRef: setColumnRef, isOver: isColumnOver } = useDroppable({ id: column.id })
   const { setNodeRef: setEmptyDropRef, isOver: isEmptyDropOver } = useDroppable({ id: `${column.id}${EMPTY_COLUMN_DROP_SUFFIX}` })
   const { setNodeRef: setTopDropRef, isOver: isTopDropOver } = useDroppable({ id: `${column.id}${TOP_COLUMN_DROP_SUFFIX}` })
+  const currentWipValue = column.wipLimit?.toString() ?? ''
 
   // Build a map for fast story lookup by ID
   const storyMap = useMemo(() => {
@@ -621,25 +628,52 @@ function BoardColumnView({
     [itemIds],
   )
 
+  const handleWipBlur = () => {
+    void onSaveWipLimit(column.id, wipDraft)
+  }
+
   return (
     <div className="flex flex-col w-72 shrink-0" data-testid={`board-column-${column.id}`} data-column-name={column.name}>
       <div className={clsx(
-        'flex items-center gap-2 rounded-t-xl px-3 py-2.5 border-b',
+        'rounded-t-xl px-3 py-2.5 border-b',
         wipOver ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200',
       )}>
-        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: column.color ?? '#6B7280' }} />
-        <span className={clsx('flex-1 text-sm font-semibold', wipOver ? 'text-yellow-800' : 'text-gray-700')} data-testid="column-name">
-          {column.name}
-        </span>
-        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500">
-          {totalPoints} SP
-        </span>
-        <span className={clsx(
-          'rounded-full px-2 py-0.5 text-xs font-medium',
-          wipOver ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-600',
-        )}>
-          {stories.length}{column.wipLimit != null ? `/${column.wipLimit}` : ''}
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: column.color ?? '#6B7280' }} />
+          <span className={clsx('flex-1 text-sm font-semibold', wipOver ? 'text-yellow-800' : 'text-gray-700')} data-testid="column-name">
+            {column.name}
+          </span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+            {totalPoints} SP
+          </span>
+          <span className={clsx(
+            'rounded-full px-2 py-0.5 text-xs font-medium',
+            wipOver ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-600',
+          )}>
+            {stories.length}{column.wipLimit != null ? `/${column.wipLimit}` : ''}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">WIP limit</span>
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={wipDraft}
+            onChange={(e) => setWipDraft(e.target.value)}
+            onBlur={handleWipBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') {
+                setWipDraft(currentWipValue)
+                e.currentTarget.blur()
+              }
+            }}
+            disabled={!canEditWip}
+            placeholder="nincs"
+            className="h-8 w-24 text-right text-xs"
+          />
+        </div>
       </div>
 
       <div
@@ -1045,9 +1079,11 @@ export function BoardPage() {
   const [createColumnId, setCreateColumnId] = useState<string | null>(null)
 
   const {
+    accessByTeamId,
     teams: visibleTeams,
     loading: teamAccessLoading,
   } = useTeamAccessMap(allTeams)
+  const teamAccess = teamId ? accessByTeamId[teamId] ?? null : null
   const canAccessTeam = visibleTeams.some((visibleTeam) => visibleTeam.id === teamId)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -1259,6 +1295,19 @@ export function BoardPage() {
     () => filteredBoardStories.reduce((sum, story) => sum + (story.estimate ?? 0), 0),
     [filteredBoardStories],
   )
+
+  const wipSummary = useMemo(() => {
+    const limitedColumns = columns.filter((column) => column.wipLimit != null)
+    const exceededColumns = limitedColumns.filter((column) => {
+      const columnStories = storiesByColumn.get(column.id) ?? []
+      return column.wipLimit != null && columnStories.length > column.wipLimit
+    })
+
+    return {
+      limitedCount: limitedColumns.length,
+      exceededCount: exceededColumns.length,
+    }
+  }, [columns, storiesByColumn])
 
   const connectedProjects = useMemo(() => {
     if (!team) return []
@@ -1655,6 +1704,7 @@ export function BoardPage() {
   }
 
   const canDeleteStory = (story: Story) => canManage(accessByProjectId[story.projectId] ?? undefined)
+  const canEditBoardColumns = canWrite(teamAccess ?? undefined)
 
   const handleDeleteStory = async (story: Story) => {
     if (!currentOrg || !canDeleteStory(story)) return
@@ -1662,6 +1712,34 @@ export function BoardPage() {
 
     await deleteStory(currentOrg.id, story.projectId, story.id)
     toast.success('Story törölve.')
+  }
+
+  const handleSaveColumnWipLimit = async (columnId: string, value: string) => {
+    if (!currentOrg || !team || !canEditBoardColumns) return
+
+    const trimmed = value.trim()
+    const parsedLimit = trimmed === '' ? null : Number(trimmed)
+
+    if (trimmed !== '') {
+      if (parsedLimit == null || !Number.isFinite(parsedLimit) || parsedLimit <= 0 || !Number.isInteger(parsedLimit)) {
+        toast.error('A WIP limitnek pozitiv egesz szamnak kell lennie.')
+        return
+      }
+    }
+
+    const nextColumns = team.boardConfig.columns.map((column) => {
+      if (column.id !== columnId) return column
+      if (parsedLimit == null) {
+        return Object.fromEntries(Object.entries(column).filter(([key]) => key !== 'wipLimit')) as BoardColumn
+      }
+      return { ...column, wipLimit: parsedLimit }
+    })
+
+    await updateDoc(doc(db, 'organizations', currentOrg.id, 'teams', team.id), {
+      'boardConfig.columns': nextColumns,
+      updatedAt: serverTimestamp(),
+    })
+    toast.success('WIP limit frissitve.')
   }
 
   const executeCloseSprint = async () => {
@@ -1764,6 +1842,20 @@ export function BoardPage() {
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500">
             {filteredBoardStories.length} story
           </span>
+          {wipSummary.limitedCount > 0 && (
+            <span
+              className={clsx(
+                'rounded-full px-2.5 py-1 text-xs font-medium',
+                wipSummary.exceededCount > 0
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-emerald-50 text-emerald-700',
+              )}
+            >
+              WIP {wipSummary.exceededCount > 0
+                ? `${wipSummary.exceededCount} tullepes`
+                : `${wipSummary.limitedCount} limit aktiv`}
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {team.connectedProjectIds.length === 0 && (
               <span className="text-xs text-amber-600 bg-amber-50 rounded-full px-3 py-1">
@@ -1898,6 +1990,8 @@ export function BoardPage() {
                     stories={colStories}
                     itemIds={itemIds}
                     totalPoints={colStories.reduce((sum, story) => sum + (story.estimate ?? 0), 0)}
+                    canEditWip={canEditBoardColumns}
+                    onSaveWipLimit={handleSaveColumnWipLimit}
                     onAddStory={handleAddStory}
                     creating={createColumnId === col.id}
                     projects={connectedProjectsForCreate}

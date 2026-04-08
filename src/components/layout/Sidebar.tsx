@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   LayoutDashboard, FolderKanban, Users, BarChart2,
-  Settings, ChevronDown, LogOut, User,
+  Settings, ChevronDown, LogOut, User, Shield,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
@@ -26,9 +26,10 @@ const navItems: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { userProfile } = useAuthStore()
+  const { userProfile, claims } = useAuthStore()
   const { currentOrg, orgRole } = useOrgStore()
   const isAdmin = orgRole === 'owner' || orgRole === 'admin'
+  const isSuperAdmin = claims.platformRole === 'super_admin'
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -125,6 +126,22 @@ export function Sidebar() {
                 Felhasználók
               </NavLink>
             </>
+          )}
+          {isSuperAdmin && (
+            <NavLink
+              to={ROUTES.PLATFORM}
+              className={({ isActive }) =>
+                clsx(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'text-white/60 hover:bg-white/10 hover:text-white',
+                )
+              }
+            >
+              <Shield className="h-5 w-5" />
+              Platform Admin
+            </NavLink>
           )}
         </div>
       </nav>

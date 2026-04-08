@@ -93,6 +93,29 @@ export function TeamSettingsPage() {
     await updateTeamColumns(currentOrg.id, teamId, cols)
   }
 
+  const handleUpdateWipLimit = async (colId: string, value: string) => {
+    if (!currentOrg || !teamId || !team) return
+
+    const trimmed = value.trim()
+    const parsedLimit = trimmed === '' ? null : Number(trimmed)
+
+    if (trimmed !== '') {
+      if (parsedLimit == null || !Number.isFinite(parsedLimit) || parsedLimit <= 0 || !Number.isInteger(parsedLimit)) {
+        return
+      }
+    }
+
+    const cols = team.boardConfig.columns.map((c) => {
+      if (c.id !== colId) return c
+      if (parsedLimit == null) {
+        return Object.fromEntries(Object.entries(c).filter(([key]) => key !== 'wipLimit')) as BoardColumn
+      }
+      return { ...c, wipLimit: parsedLimit }
+    })
+
+    await updateTeamColumns(currentOrg.id, teamId, cols)
+  }
+
   const handleToggleDoneColumn = async (colId: string) => {
     if (!currentOrg || !teamId || !team) return
     const cols = team.boardConfig.columns.map((c) =>
@@ -240,6 +263,21 @@ export function TeamSettingsPage() {
                 />
                 Done
               </label>
+              <div className="flex items-center gap-2">
+                <label htmlFor={`wip-${col.id}`} className="text-xs text-gray-500 whitespace-nowrap">
+                  WIP limit
+                </label>
+                <Input
+                  id={`wip-${col.id}`}
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={col.wipLimit ?? ''}
+                  onBlur={(e) => void handleUpdateWipLimit(col.id, e.target.value)}
+                  placeholder="-"
+                  className="w-20"
+                />
+              </div>
               <div className="flex items-center gap-1">
                 <button
                   type="button"

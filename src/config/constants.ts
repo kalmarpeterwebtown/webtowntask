@@ -48,6 +48,7 @@ export const ROUTES = {
   ORG_REPORTS:     '/reports',
   ORG_SETTINGS:    '/settings/organization',
   USERS:           '/settings/users',
+  PLATFORM:        '/platform',
   PROFILE:         '/settings/profile',
   SETUP:           '/setup',
   CLIENT:          '/client',

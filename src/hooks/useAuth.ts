@@ -89,8 +89,9 @@ export function useAuthInit() {
       // Custom claims lekérése (Cloud Function állítja be, ha már létezik)
       const idTokenResult = await firebaseUser.getIdTokenResult()
       const claims: AuthClaims = {
-        orgId:   idTokenResult.claims['orgId'] as string | undefined,
-        orgRole: idTokenResult.claims['orgRole'] as AuthClaims['orgRole'],
+        orgId: idTokenResult.claims.orgId as string | undefined,
+        orgRole: idTokenResult.claims.orgRole as AuthClaims['orgRole'],
+        platformRole: idTokenResult.claims.platformRole as AuthClaims['platformRole'],
       }
       setClaims(claims)
 

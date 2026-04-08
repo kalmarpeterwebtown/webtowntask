@@ -31,6 +31,10 @@ export function OrgGuard() {
   const { initialized, loading, userProfile, claims } = useAuthStore()
   const { currentOrg, memberships, membershipsLoaded, loading: orgLoading } = useOrgStore()
 
+  if (claims.platformRole === 'super_admin') {
+    return <Outlet />
+  }
+
   const hasResolvableOrgHint = Boolean(currentOrg || claims.orgId || userProfile?.currentOrgId || memberships.length > 0)
   const waitingForOrgResolution = hasResolvableOrgHint && !currentOrg
 
@@ -65,6 +69,14 @@ export function ClientGuard() {
 export function AdminGuard() {
   const { orgRole } = useOrgStore()
   if (orgRole !== 'admin' && orgRole !== 'owner') {
+    return <Navigate to={ROUTES.DASHBOARD} replace />
+  }
+  return <Outlet />
+}
+
+export function PlatformAdminGuard() {
+  const { claims } = useAuthStore()
+  if (claims.platformRole !== 'super_admin') {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
   return <Outlet />

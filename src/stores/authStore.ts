@@ -6,6 +6,7 @@ import type { OrgRole } from '@/types/enums'
 export interface AuthClaims {
   orgId?: string
   orgRole?: OrgRole
+  platformRole?: 'super_admin'
 }
 
 interface AuthState {

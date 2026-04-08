@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, GripVertical, Layout, PencilLine, Trash2, X } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { clsx } from 'clsx'
@@ -34,6 +35,9 @@ interface StoryRowProps {
   onEstimateSave?: (storyId: string, estimate: number | null) => Promise<void>
   canDelete?: boolean
   onDelete?: (story: Story) => void
+  dragMode?: 'sortable' | 'draggable' | 'none'
+  boardLabel?: string | null
+  columnLabel?: string | null
 }
 
 export function StoryRow({
@@ -46,6 +50,9 @@ export function StoryRow({
   onEstimateSave,
   canDelete = false,
   onDelete,
+  dragMode = 'sortable',
+  boardLabel = null,
+  columnLabel = null,
 }: StoryRowProps) {
   const navigate = useNavigate()
   const { currentOrg } = useOrgStore()
@@ -54,13 +61,45 @@ export function StoryRow({
   const [estimateInput, setEstimateInput] = useState('')
   const [savingEstimate, setSavingEstimate] = useState(false)
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: story.id })
+  const sortable = useSortable({
+    id: story.id,
+    data: { type: 'story', storyId: story.id, location: story.location },
+    disabled: dragMode !== 'sortable',
+  })
+  const draggable = useDraggable({
+    id: dragMode === 'draggable' ? story.id : `disabled-draggable-${story.id}`,
+    data: { type: 'story', storyId: story.id, location: story.location },
+    disabled: dragMode !== 'draggable',
+  })
+  const droppable = useDroppable({
+    id: dragMode === 'draggable' ? story.id : `disabled-droppable-${story.id}`,
+    data: { type: 'story-drop', storyId: story.id, location: story.location },
+    disabled: dragMode === 'sortable',
+  })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+  const activeHook = dragMode === 'sortable'
+    ? sortable
+    : dragMode === 'draggable'
+    ? draggable
+    : null
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(activeHook?.transform ?? null),
+    transition: dragMode === 'sortable' ? sortable.transition : undefined,
   }
+
+  const setNodeRef = (node: HTMLElement | null) => {
+    if (dragMode === 'sortable') {
+      sortable.setNodeRef(node)
+      return
+    }
+    droppable.setNodeRef(node)
+    if (dragMode === 'draggable') draggable.setNodeRef(node)
+  }
+
+  const attributes = !readOnly && dragMode !== 'none' ? activeHook?.attributes : undefined
+  const listeners = !readOnly && dragMode !== 'none' ? activeHook?.listeners : undefined
+  const isDragging = activeHook?.isDragging ?? false
 
   const storyTags = tagMap
     ? story.tagIds.map((id) => tagMap.get(id)).filter(Boolean) as Tag[]
@@ -101,8 +140,8 @@ export function StoryRow({
     <div
       ref={setNodeRef}
       style={style}
-      {...(!readOnly ? attributes : {})}
-      {...(!readOnly ? listeners : {})}
+      {...(attributes ?? {})}
+      {...(listeners ?? {})}
       data-testid={`backlog-story-${story.id}`}
       data-story-title={story.title}
       data-story-location={story.location}
@@ -145,9 +184,32 @@ export function StoryRow({
         </span>
 
         {/* Cím */}
-        <span className="flex-1 truncate text-sm font-medium text-gray-800 group-hover:text-gray-900">
-          {story.title}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span className="block truncate text-sm font-medium text-gray-800 group-hover:text-gray-900">
+            {story.title}
+          </span>
+          {(boardLabel || columnLabel) && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+              {boardLabel && (
+                <span
+                  data-testid={`backlog-story-board-${story.id}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600"
+                >
+                  <Layout className="h-3 w-3" />
+                  {boardLabel}
+                </span>
+              )}
+              {columnLabel && (
+                <span
+                  data-testid={`backlog-story-phase-${story.id}`}
+                  className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600"
+                >
+                  Fázis: {columnLabel}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Prioritás */}
         <span className={clsx(

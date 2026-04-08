@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <title>Webtown Agile Task Manager - Felhasználói kézikönyv</title>
+  <style>
+    body {
+      font-family: "Aptos", "Segoe UI", Arial, sans-serif;
+      color: #1f2937;
+      line-height: 1.5;
+      margin: 40px;
+    }
+    h1, h2, h3 {
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 28px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 20px;
+      margin-top: 28px;
+      border-bottom: 1px solid #dbe3ea;
+      padding-bottom: 6px;
+    }
+    h3 {
+      font-size: 16px;
+      margin-top: 18px;
+    }
+    p {
+      margin: 8px 0;
+    }
+    ul, ol {
+      margin: 8px 0 8px 22px;
+    }
+    li {
+      margin: 4px 0;
+    }
+    .muted {
+      color: #475569;
+    }
+    .box {
+      border: 1px solid #dbe3ea;
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 12px 14px;
+      margin: 12px 0;
+    }
+    .small {
+      font-size: 12px;
+      color: #64748b;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0;
+    }
+    th, td {
+      border: 1px solid #dbe3ea;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f1f5f9;
+    }
+    code {
+      font-family: "SF Mono", Consolas, monospace;
+      background: #f1f5f9;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Webtown Agile Task Manager</h1>
+  <p class="muted"><strong>Felhasználói kézikönyv</strong></p>
+  <p class="small">Készült: 2026-03-29</p>
+
+  <div class="box">
+    <p><strong>A dokumentum célja</strong></p>
+    <p>Ez a kézikönyv az alkalmazás jelenleg elkészült és használható funkcióit foglalja össze. A leírás a ténylegesen megvalósított működésre épül, és segítséget ad a napi használathoz, adminisztrációhoz és alapvető beállításokhoz.</p>
+  </div>
+
+  <h2>1. Bejelentkezés és hozzáférés</h2>
+  <h3>1.1 Elérhető bejelentkezési módok</h3>
+  <ul>
+    <li>Email és jelszó alapú bejelentkezés</li>
+    <li>Google bejelentkezés</li>
+    <li>Elfelejtett jelszó folyamat</li>
+    <li>Meghívó alapú csatlakozás szervezethez</li>
+  </ul>
+
+  <h3>1.2 Meghívó alapú belépés</h3>
+  <p>A szervezet adminisztrátora új felhasználót tud meghívni. A meghívott felhasználó a link megnyitása után regisztrálhat vagy bejelentkezhet, majd elfogadhatja a meghívást.</p>
+  <ul>
+    <li>A meghívás szervezeti tagságot hoz létre.</li>
+    <li>A felhasználó normál bejelentkezés után is a megfelelő szervezetbe kerül.</li>
+    <li>Több fiók használata esetén a rendszer támogatja a megfelelő account kiválasztását.</li>
+  </ul>
+
+  <h2>2. Szervezetek és jogosultságok</h2>
+  <h3>2.1 Szervezeti szerepkörök</h3>
+  <table>
+    <tr>
+      <th>Szerepkör</th>
+      <th>Jelentés</th>
+    </tr>
+    <tr>
+      <td>Tulajdonos / Admin</td>
+      <td>Teljes szervezeti adminisztráció, felhasználókezelés, beállítások és riportok.</td>
+    </tr>
+    <tr>
+      <td>Standard</td>
+      <td>Normál belső felhasználó, aki projektekhez és csapatokhoz rendelhető.</td>
+    </tr>
+    <tr>
+      <td>Ügyfél</td>
+      <td>Korlátozott, ügyféloldali láthatóság. Projektek és feladatok láthatók, worklog nem.</td>
+    </tr>
+  </table>
+
+  <h3>2.2 Projekt és csapat hozzáférési szintek</h3>
+  <table>
+    <tr>
+      <th>Szint</th>
+      <th>Jelentés</th>
+    </tr>
+    <tr>
+      <td>Olvasás</td>
+      <td>Megtekintésre alkalmas hozzáférés. Az adott projekt vagy csapat látható, de módosítás nem végezhető.</td>
+    </tr>
+    <tr>
+      <td>Szerkesztés</td>
+      <td>Napi munkavégzéshez szükséges hozzáférés. Storyk, taskok, státuszok és kapcsolódó operatív adatok módosíthatók.</td>
+    </tr>
+    <tr>
+      <td>Kezelés</td>
+      <td>Konfigurációs és adminisztratív hozzáférés. Beállítások és tagságok kezelésére is alkalmas.</td>
+    </tr>
+  </table>
+
+  <h2>3. Fő navigáció</h2>
+  <p>A bal oldali menü és a felső fejléc együtt biztosítják a fő navigációt.</p>
+  <ul>
+    <li><strong>Áttekintő</strong>: személyes dashboard</li>
+    <li><strong>Projektek</strong>: minden látható projekt</li>
+    <li><strong>Csapatok</strong>: boardok és sprint nézetek</li>
+    <li><strong>Riportok</strong>: szervezeti és projekt riportok</li>
+    <li><strong>Profil</strong>: saját adatlap és jelszómódosítás</li>
+  </ul>
+
+  <p>A bal oldali menü ki- és becsukható. A felső sávban megtalálható a globális kereső és az értesítési panel.</p>
+
+  <h2>4. Globális kereső</h2>
+  <p>A fejlécben található <strong>Fő kereső</strong> egy modern, teljes képernyős overlay kereső.</p>
+  <ul>
+    <li>Megnyitható kattintással vagy <code>⌘K</code> / <code>Ctrl+K</code> billentyűvel</li>
+    <li>Keres projekt nevében</li>
+    <li>Keres csapat nevében</li>
+    <li>Keres story címben és leírásban</li>
+    <li>A találatok közvetlenül megnyithatók</li>
+  </ul>
+
+  <h2>5. Áttekintő oldal</h2>
+  <p>Az Áttekintő oldal a napi munkát segítő, személyre szabott dashboard.</p>
+
+  <h3>5.1 Fő statisztikák</h3>
+  <ul>
+    <li>Hozzám rendelt munka</li>
+    <li>Nyitott taskok</li>
+    <li>Aktív projektek száma</li>
+    <li>Időszaki worklog összesítés</li>
+  </ul>
+
+  <h3>5.2 Személyes blokkok</h3>
+  <ul>
+    <li><strong>Hozzám rendelt munkák</strong>: taskok és hozzám rendelt storyk kompakt nézetben</li>
+    <li><strong>Saját időráfordításom</strong>: legutóbbi worklog bejegyzések időszak szerinti szűréssel</li>
+    <li><strong>Worklog trend</strong>: az elmúlt 7 nap vizuális trendje</li>
+  </ul>
+
+  <h2>6. Projektek</h2>
+  <h3>6.1 Projektlista</h3>
+  <ul>
+    <li>Az összes látható projekt kártyás formában jelenik meg.</li>
+    <li>Admin és megfelelő jogosultságú felhasználó új projektet hozhat létre.</li>
+    <li>A projekt létrehozása után a projekt frissítés nélkül is megjelenik a listában.</li>
+  </ul>
+
+  <h3>6.2 Projekt dashboard</h3>
+  <p>A projekt összefoglaló nézet gyors áttekintést ad az állapotról, aktivitásról és a backlog/board kapcsolódásról.</p>
+
+  <h2>7. Backlog kezelés</h2>
+  <p>A backlog projekt szintű nézet, amelyben a storyk helye és állapota jól követhető.</p>
+
+  <h3>7.1 Fő elemek</h3>
+  <ul>
+    <li>Backlog és Planbox kezelése</li>
+    <li>Kapcsolt boardok / csapatok megjelenítése</li>
+    <li>Inline story pontozás</li>
+    <li>Story részletes nézet megnyitása</li>
+    <li>Átjárás backlog és board között</li>
+  </ul>
+
+  <h3>7.2 Gyors használat</h3>
+  <ul>
+    <li>A storyk a backlogból a boardra mozgathatók.</li>
+    <li>Az estimate közvetlenül a backlog sorából módosítható.</li>
+    <li>A kapcsolt csapatokra kattintva megnyitható a megfelelő board.</li>
+  </ul>
+
+  <h2>8. Board és csapatnézet</h2>
+  <h3>8.1 Board funkciók</h3>
+  <ul>
+    <li>Oszlopok közötti drag and drop</li>
+    <li>Bal oldali backlog panel a kapcsolt projektek storyjaival</li>
+    <li>Accordion projektlista a backlog panelben</li>
+    <li>Storyk boardra húzása backlogból és planboxból</li>
+    <li>Oszloponkénti SP összesítés</li>
+    <li>Felhasználó szerinti szűrés avatarokkal</li>
+    <li>Tag alapú szűrés</li>
+    <li>Keresés a teljes boardon</li>
+    <li>Inline story létrehozás</li>
+    <li>Gyors műveletek a 3 pontos menüből</li>
+  </ul>
+
+  <h3>8.2 Sprint panel</h3>
+  <p>A sprint és delivered nézet a board jobb oldalán, kihajtható panelben jelenik meg.</p>
+  <ul>
+    <li>Aktív vagy tervezett sprint állapot</li>
+    <li>Sprint indítás</li>
+    <li>Sprint zárás</li>
+    <li>Burndown grafikon</li>
+    <li>Delivered elemek sprintenként csoportosítva</li>
+  </ul>
+
+  <h3>8.3 Sprint működés</h3>
+  <ul>
+    <li>Aktív sprint alatt a board elemei jelentik a sprint scope-ot.</li>
+    <li>Sprint záráskor a kész elemek delivered státuszba kerülnek.</li>
+    <li>A nem kész elemek maradhatnak a boardon vagy visszatehetők a backlogba.</li>
+  </ul>
+
+  <h2>9. Story részletes nézet</h2>
+  <h3>9.1 Inline szerkesztés</h3>
+  <ul>
+    <li>Cím és leírás szerkesztése</li>
+    <li>Típus, prioritás, méret, helyszín inline módosítása</li>
+    <li>Taskok kezelése közvetlenül a story alatt</li>
+    <li>Task leírás szerkesztése megnövelt szerkesztőmezővel</li>
+  </ul>
+
+  <h3>9.2 WYSIWYG-szerű leírás</h3>
+  <ul>
+    <li>Félkövér formázás</li>
+    <li>Dőlt formázás</li>
+    <li>Felsorolás</li>
+    <li>Automatikus mentés</li>
+  </ul>
+
+  <h3>9.3 Komment és @mention</h3>
+  <ul>
+    <li>Komment írás</li>
+    <li>@mention gépelés közbeni felhasználóajánlással</li>
+    <li>Értesítés küldése a megemlített felhasználónak</li>
+  </ul>
+
+  <h3>9.4 Csatolmányok</h3>
+  <ul>
+    <li>Fájl feltöltés</li>
+    <li>Drag and drop feltöltés</li>
+    <li>Csatolmány lista</li>
+  </ul>
+
+  <h3>9.5 Worklog</h3>
+  <ul>
+    <li>Storyra és taskra is lehet időt logolni</li>
+    <li>Rugalmas beviteli formátumok, például <code>1:30h</code>, <code>90p</code>, <code>45m</code></li>
+    <li>Összesített story worklog megjelenítés</li>
+  </ul>
+
+  <div class="box">
+    <p><strong>Fontos jogosultsági megjegyzés</strong></p>
+    <p>Ügyfél szerepkör esetén a worklog nem jelenik meg a story részletes nézetben. Az ügyfél láthatja a projektet és a feladatokat, de nem lát időráfordítási adatokat.</p>
+  </div>
+
+  <h2>10. Task kezelés</h2>
+  <ul>
+    <li>Task létrehozás story alatt</li>
+    <li>Task lezárás / újranyitás</li>
+    <li>Task assignee kiválasztása avataros gyorsmenüvel</li>
+    <li>Task leírás inline szerkesztése</li>
+    <li>Task worklog rögzítés</li>
+  </ul>
+
+  <h2>11. Riportok</h2>
+  <h3>11.1 Szervezeti riportok</h3>
+  <ul>
+    <li>Aktív projektek összesítése</li>
+    <li>Összes story</li>
+    <li>Becsült SP</li>
+    <li>Blokkolt storyk</li>
+    <li>Projekt összehasonlítás</li>
+    <li>Közvetlen link a projekt riportokra</li>
+  </ul>
+
+  <h3>11.2 Projekt riportok</h3>
+  <ul>
+    <li>Státusz és típus bontások</li>
+    <li>Prioritási összesítések</li>
+    <li>Worklog személyenként</li>
+    <li>Teljesített és becsült SP alapú összegzés</li>
+  </ul>
+
+  <h2>12. Értesítések</h2>
+  <ul>
+    <li>Jobb felső értesítési panel</li>
+    <li>@mention alapú értesítések</li>
+    <li>Olvasatlan jelölések</li>
+    <li>Kattintható navigáció az érintett elemre</li>
+  </ul>
+
+  <h2>13. Profil oldal</h2>
+  <ul>
+    <li>Saját név szerkesztése</li>
+    <li>Email megjelenítése</li>
+    <li>Szervezeti szerepkör megjelenítése</li>
+    <li>Jelszó módosítás email/jelszó alapú fióknál</li>
+    <li>Jelszó-visszaállító email küldése külső provideres esetben</li>
+  </ul>
+
+  <h2>14. Ügyfél nézet</h2>
+  <p>Az ügyfél szerepkörű felhasználó korlátozott, egyszerűsített hozzáférést kap.</p>
+  <ul>
+    <li>Projekt és kapcsolódó feladatok láthatók</li>
+    <li>Technikai adminisztráció nem érhető el</li>
+    <li>Worklog adatok nem láthatók</li>
+    <li>A felület szövegezése az üzleti használathoz igazodik</li>
+  </ul>
+
+  <h2>15. Jelenlegi működési megjegyzések</h2>
+  <ul>
+    <li>A rendszer aktív fejlesztés alatt áll, ezért bizonyos részek még tovább finomíthatók.</li>
+    <li>A Pages környezet és a lokális fejlesztői környezet is működőképes.</li>
+    <li>A jogosultságkezelés nagy része megvalósult, de a backend oldali keményítés további fejlesztési irány marad.</li>
+  </ul>
+
+  <h2>16. Ajánlott napi használati folyamat</h2>
+  <ol>
+    <li>Belépés a rendszerbe</li>
+    <li>Áttekintő oldalon a saját munkák és időráfordítás ellenőrzése</li>
+    <li>Projekt backlog vagy csapat board megnyitása</li>
+    <li>Storyk és taskok frissítése</li>
+    <li>Kommentek, mentionök és csatolmányok használata</li>
+    <li>Munkaidő logolása</li>
+    <li>Riportok áttekintése szükség szerint</li>
+  </ol>
+
+  <div class="box">
+    <p><strong>Összefoglalás</strong></p>
+    <p>A rendszer jelen állapotában már jól használható backlog, board, sprint, story, task, worklog, riport és értesítési alapokkal rendelkezik. A felület több felhasználói szerepkört, projekt- és csapatszintű jogosultságot, valamint modern, gyors napi munkafolyamatokat támogat.</p>
+  </div>
+</body>
+</html>

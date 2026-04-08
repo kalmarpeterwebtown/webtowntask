@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, type FormEvent, type CSSProperties } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
   closestCenter,
+  MeasuringStrategy,
   pointerWithin,
   useDroppable,
   PointerSensor,
@@ -30,7 +31,7 @@ import { useBacklog } from '@/hooks/useBacklog'
 import { useProjects } from '@/hooks/useProjects'
 import { useProjectAccessMap } from '@/hooks/useAccess'
 import { useOrgStore } from '@/stores/orgStore'
-import { createStory, deleteStory, moveStory, updateStory } from '@/services/story.service'
+import { createStory, deleteStory, moveStory, moveStoryToBoard, updateStory } from '@/services/story.service'
 import { subscribeToTags, createTag, addTagToStory } from '@/services/tag.service'
 import { subscribeToTeams } from '@/services/team.service'
 import { subscribeToProjectMemberships } from '@/services/access.service'
@@ -39,14 +40,19 @@ import { canManage, canWrite } from '@/utils/permissions'
 import { toast } from '@/stores/uiStore'
 import type { StoryLocation } from '@/types/enums'
 import type { Story, Tag, Team, ProjectMembership } from '@/types/models'
+import {
+  BOARD_DROP_PREFIX,
+  TOP_SECTION_DROP_SUFFIX,
+  buildBoardMetaById,
+  getBoardMoveTarget,
+  selectBacklogCollisionId,
+} from '@/pages/backlogDnd'
 
 const PRESET_COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
   '#f97316', '#eab308', '#22c55e', '#06b6d4',
   '#3b82f6', '#64748b',
 ]
-
-const TOP_SECTION_DROP_SUFFIX = '__top-drop'
 
 const SECTION_CONFIG: {
   location: StoryLocation
@@ -250,6 +256,7 @@ interface SectionProps {
   tagMap: Map<string, Tag>
   isTagDragging: boolean
   overStoryId: string | null
+  getBoardMeta?: (story: Story) => { boardLabel: string | null; columnLabel: string | null }
 }
 
 function BacklogSection({
@@ -263,10 +270,13 @@ function BacklogSection({
   onCancelCreate,
   currentProject,
   tagMap, isTagDragging, overStoryId,
+  getBoardMeta,
 }: SectionProps) {
   const config = SECTION_CONFIG.find((s) => s.location === location)!
   const Icon = config.icon
   const { setNodeRef: setTopDropRef, isOver: isTopDropOver } = useDroppable({ id: `${location}${TOP_SECTION_DROP_SUFFIX}` })
+  const sortingEnabled = location !== 'board'
+  const canCreateHere = location !== 'board'
 
   return (
     <div
@@ -296,13 +306,16 @@ function BacklogSection({
             data-testid={`backlog-top-drop-${location}`}
             className={clsx(
               'mb-2 h-6 rounded-md border border-dashed transition-colors',
+              !sortingEnabled && 'hidden',
               isTopDropOver ? 'border-primary-300 bg-primary-50' : 'border-transparent bg-transparent',
             )}
             aria-hidden="true"
           />
 
           <SortableContext items={stories.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-            {stories.map((story) => (
+            {stories.map((story) => {
+              const boardMeta = getBoardMeta?.(story) ?? { boardLabel: null, columnLabel: null }
+              return (
               <StoryRow
                 key={story.id}
                 story={story}
@@ -314,15 +327,19 @@ function BacklogSection({
                 tagMap={tagMap}
                 isTagDragging={isTagDragging}
                 isTagDropTarget={isTagDragging && overStoryId === story.id}
+                dragMode={sortingEnabled ? 'sortable' : 'draggable'}
+                boardLabel={location === 'board' ? boardMeta.boardLabel : null}
+                columnLabel={location === 'board' ? boardMeta.columnLabel : null}
               />
-            ))}
+              )
+            })}
           </SortableContext>
 
           {stories.length === 0 && (
             <p className="py-4 text-center text-sm text-gray-400">{config.emptyText}</p>
           )}
 
-          {creating ? (
+          {creating && canCreateHere ? (
             <InlineStoryComposer
               projects={[{ id: projectId, name: currentProject?.name ?? 'Projekt', prefix: currentProject?.prefix ?? 'PRJ' }]}
               membersByProjectId={{ [projectId]: projectMembers }}
@@ -330,7 +347,7 @@ function BacklogSection({
               onCancel={onCancelCreate}
               className="mt-2"
             />
-          ) : (
+          ) : canCreateHere ? (
             <button
               onClick={() => onAddStory(
                 location,
@@ -343,8 +360,55 @@ function BacklogSection({
               <Plus className="h-4 w-4" />
               Story hozzáadása
             </button>
-          )}
+          ) : null}
         </div>
+      )}
+    </div>
+  )
+}
+
+function LinkedBoardDropTarget({
+  team,
+  disabled,
+}: {
+  team: Team
+  disabled: boolean
+}) {
+  const navigate = useNavigate()
+  const { setNodeRef, isOver } = useDroppable({
+    id: `${BOARD_DROP_PREFIX}${team.id}`,
+    disabled,
+    data: { type: 'linked-board-drop', teamId: team.id },
+  })
+
+  const firstColumn = team.boardConfig.columns[0]
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`linked-board-drop-${team.id}`}
+      className={clsx(
+        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
+        isOver
+          ? 'border-primary-400 bg-primary-50 text-primary-700'
+          : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300 hover:text-primary-700',
+      )}
+    >
+      <span>{team.name}</span>
+      <button
+        type="button"
+        onClick={() => navigate(ROUTES.BOARD(team.id))}
+        className="rounded bg-white px-2 py-0.5 text-[11px] text-gray-500 hover:text-primary-700"
+      >
+        Board
+      </button>
+      {firstColumn && (
+        <span className={clsx(
+          'rounded px-2 py-0.5 text-[11px]',
+          isOver ? 'bg-primary-100 text-primary-700' : 'bg-white text-gray-500',
+        )}>
+          Kezdő oszlop: {firstColumn.name}
+        </span>
       )}
     </div>
   )
@@ -373,6 +437,7 @@ export function BacklogPage() {
   const { groups, loading } = useBacklog(projectId ?? '', canAccessProject)
 
   const [tags, setTags] = useState<Tag[]>([])
+  const [allTeams, setAllTeams] = useState<Team[]>([])
   const [linkedTeams, setLinkedTeams] = useState<Team[]>([])
   const [tagMap, setTagMap] = useState<Map<string, Tag>>(new Map())
   const [projectMembers, setProjectMembers] = useState<ProjectMembership[]>([])
@@ -394,16 +459,26 @@ export function BacklogPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const collisionDetection = useMemo<CollisionDetection>(() => (args) => {
-    const filtered = args.droppableContainers.filter((container) => String(container.id) !== String(args.active.id))
+    const activeDataType = args.active.data.current?.type
+    const filtered = args.droppableContainers.filter((container) => {
+      const id = String(container.id)
+      if (id === String(args.active.id)) return false
+      if (activeDataType !== 'tag') {
+        if (id === `board${TOP_SECTION_DROP_SUFFIX}`) return false
+        if (container.data.current?.type === 'story-drop' && container.data.current?.location === 'board') return false
+      }
+      return true
+    })
     const pw = pointerWithin({ ...args, droppableContainers: filtered })
     if (pw.length > 0) {
-      const storyHit = pw.find((container) => {
-        const id = String(container.id)
-        return !id.endsWith(TOP_SECTION_DROP_SUFFIX)
-      })
-      if (storyHit) return [storyHit]
-      const topDropHit = pw.find((container) => String(container.id).endsWith(TOP_SECTION_DROP_SUFFIX))
-      if (topDropHit) return [topDropHit]
+      const selectedId = selectBacklogCollisionId(
+        pw.map((container) => String(container.id)),
+        typeof activeDataType === 'string' ? activeDataType : undefined,
+      )
+      if (selectedId) {
+        const selectedContainer = pw.find((container) => String(container.id) === selectedId)
+        if (selectedContainer) return [selectedContainer]
+      }
       return [pw[0]]
     }
     return closestCenter({ ...args, droppableContainers: filtered })
@@ -421,6 +496,7 @@ export function BacklogPage() {
   useEffect(() => {
     if (!orgId || !projectId) return
     return subscribeToTeams(orgId, (teams) => {
+      setAllTeams(teams)
       setLinkedTeams(teams.filter((team) => team.connectedProjectIds.includes(projectId)))
     })
   }, [orgId, projectId])
@@ -432,6 +508,21 @@ export function BacklogPage() {
 
   const toggleSection = (location: StoryLocation) => {
     setOpenSections((prev) => ({ ...prev, [location]: !prev[location] }))
+  }
+
+  const boardMetaById = useMemo(() => buildBoardMetaById(allTeams), [allTeams])
+
+  const getBoardMeta = (story: Story) => {
+    const directBoardMeta = story.boardId ? boardMetaById.get(story.boardId) ?? null : null
+    const fallbackBoardMeta = story.columnId
+      ? Array.from(boardMetaById.values()).find((entry) => entry.columnMap.has(story.columnId!)) ?? null
+      : null
+    const boardMeta = directBoardMeta ?? fallbackBoardMeta
+    const column = story.columnId ? boardMeta?.columnMap.get(story.columnId) ?? null : null
+    return {
+      boardLabel: boardMeta?.team.name ?? 'Kapcsolt board',
+      columnLabel: column?.name ?? (story.columnId ? 'Ismeretlen oszlop' : null),
+    }
   }
 
   const openAddStory = (location: StoryLocation, afterOrder?: string) => {
@@ -532,6 +623,16 @@ export function BacklogPage() {
     if (!activeStory) return
 
     const overId = String(over.id)
+    const boardDropTeamId = overId.startsWith(BOARD_DROP_PREFIX)
+      ? overId.slice(BOARD_DROP_PREFIX.length)
+      : null
+    if (boardDropTeamId) {
+      const moveTarget = getBoardMoveTarget(groups.board, boardMetaById, boardDropTeamId)
+      if (!moveTarget) return
+      await moveStoryToBoard(currentOrg.id, projectId, activeStory.id, moveTarget.teamId, moveTarget.columnId, moveTarget.newOrder)
+      return
+    }
+
     const topDropLocation = SECTION_CONFIG
       .map((section) => section.location)
       .find((location) => overId === `${location}${TOP_SECTION_DROP_SUFFIX}`) ?? null
@@ -561,6 +662,8 @@ export function BacklogPage() {
     const prevOrder = prevStory?.backlogOrder ?? prevStory?.planboxOrder ?? null
     const nextOrder = nextStory?.backlogOrder ?? nextStory?.planboxOrder ?? null
     const newOrder = keyBetween(prevOrder, nextOrder)
+
+    if (targetLocation === 'board') return
 
     await moveStory(currentOrg.id, projectId, activeStory.id, targetLocation, newOrder)
   }
@@ -616,32 +719,6 @@ export function BacklogPage() {
         </Button>
       </div>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-          <Link2 className="h-4 w-4 text-primary-600" />
-          Kapcsolt csapatok és boardok
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Innen látszik, mely csapatok használják ezt a projekt backlogját.
-        </p>
-        {linkedTeams.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-400">Ehhez a projekthez még nincs csapat kapcsolva.</p>
-        ) : (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {linkedTeams.map((team) => (
-              <Link
-                key={team.id}
-                to={ROUTES.BOARD(team.id)}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:border-primary-300 hover:text-primary-700"
-              >
-                <span>{team.name}</span>
-                <span className="rounded bg-white px-2 py-0.5 text-[11px] text-gray-400">Board</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -651,12 +728,36 @@ export function BacklogPage() {
       ) : (
         <DndContext
           sensors={sensors}
+          measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
           collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragCancel={handleDragCancel}
           onDragEnd={handleDragEnd}
         >
+          <div className="sticky top-4 z-10 mb-6 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+              <Link2 className="h-4 w-4 text-primary-600" />
+              Kapcsolt csapatok és boardok
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Húzd bármelyik story-t a megfelelő boardra, ekkor az a board első oszlopának aljára kerül.
+            </p>
+            {linkedTeams.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-400">Ehhez a projekthez még nincs csapat kapcsolva.</p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {linkedTeams.map((team) => (
+                  <LinkedBoardDropTarget
+                    key={team.id}
+                    team={team}
+                    disabled={readOnly}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-4 items-start">
             {/* Main backlog */}
             <div className="flex-1 min-w-0 space-y-3">
@@ -681,6 +782,7 @@ export function BacklogPage() {
                   tagMap={tagMap}
                   isTagDragging={activeType === 'tag'}
                   overStoryId={overStoryId}
+                  getBoardMeta={getBoardMeta}
                 />
               ))}
             </div>

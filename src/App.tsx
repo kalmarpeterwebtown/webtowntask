@@ -1,6 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthInit } from '@/hooks/useAuth'
-import { AuthGuard, OrgGuard, AdminGuard } from '@/components/auth/AuthGuard'
+import { AuthGuard, OrgGuard, AdminGuard, PlatformAdminGuard } from '@/components/auth/AuthGuard'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ClientLayout } from '@/components/layout/ClientLayout'
 import { ToastContainer } from '@/components/ui/Toast'
@@ -29,6 +29,7 @@ import { ClientDashboardPage } from '@/pages/ClientDashboardPage'
 import { ClientProjectPage } from '@/pages/ClientProjectPage'
 import { OrgSetupPage } from '@/pages/OrgSetupPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { PlatformAdminPage } from '@/pages/PlatformAdminPage'
 
 export default function App() {
   useAuthInit()
@@ -44,6 +45,12 @@ export default function App() {
 
         {/* Védett oldalak */}
         <Route element={<AuthGuard />}>
+          <Route element={<AppLayout />}>
+            <Route element={<PlatformAdminGuard />}>
+              <Route path="/platform" element={<PlatformAdminPage />} />
+            </Route>
+          </Route>
+
           {/* Onboarding — org nélküli user */}
           <Route path="/setup" element={<OrgSetupPage />} />
 

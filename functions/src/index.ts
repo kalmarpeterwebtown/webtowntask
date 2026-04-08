@@ -1,0 +1,15 @@
+import { onCall } from 'firebase-functions/v2/https'
+import { createPlatformAdminHandlers } from './platformAdmin/handlers.js'
+import { createPlatformAdminRepository } from './platformAdmin/repository.js'
+
+const platformAdminHandlers = createPlatformAdminHandlers(createPlatformAdminRepository())
+
+const region = 'europe-west1'
+
+export const platformAdminFindUserFootprint = onCall({ region }, platformAdminHandlers.findUserFootprint)
+export const platformAdminListAuditLogs = onCall({ region }, platformAdminHandlers.listAuditLogs)
+export const platformAdminDetachUserFromOrganization = onCall({ region }, platformAdminHandlers.detachUserFromOrganization)
+export const platformAdminHardDeleteUserFootprint = onCall({ region }, platformAdminHandlers.hardDeleteUserFootprint)
+export const platformAdminDeleteAuthUser = onCall({ region }, platformAdminHandlers.deleteAuthUser)
+export const platformAdminPreviewOrganizationDeletion = onCall({ region }, platformAdminHandlers.previewOrganizationDeletion)
+export const platformAdminDeleteOrganization = onCall({ region }, platformAdminHandlers.deleteOrganization)

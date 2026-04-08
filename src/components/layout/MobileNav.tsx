@@ -1,16 +1,25 @@
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { LayoutDashboard, FolderKanban, Users, Settings } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, Users, Settings, Shield } from 'lucide-react'
 import { ROUTES } from '@/config/constants'
-
-const items = [
-  { label: 'Áttekintő', to: ROUTES.DASHBOARD, icon: LayoutDashboard },
-  { label: 'Projektek',  to: ROUTES.PROJECTS,  icon: FolderKanban },
-  { label: 'Csapatok',   to: ROUTES.TEAMS,     icon: Users },
-  { label: 'Profil',     to: ROUTES.PROFILE,   icon: Settings },
-]
+import { useAuthStore } from '@/stores/authStore'
 
 export function MobileNav() {
+  const isSuperAdmin = useAuthStore((state) => state.claims.platformRole === 'super_admin')
+  const items = isSuperAdmin
+    ? [
+        { label: 'Áttekintő', to: ROUTES.DASHBOARD, icon: LayoutDashboard },
+        { label: 'Projektek', to: ROUTES.PROJECTS, icon: FolderKanban },
+        { label: 'Platform', to: ROUTES.PLATFORM, icon: Shield },
+        { label: 'Profil', to: ROUTES.PROFILE, icon: Settings },
+      ]
+    : [
+        { label: 'Áttekintő', to: ROUTES.DASHBOARD, icon: LayoutDashboard },
+        { label: 'Projektek', to: ROUTES.PROJECTS, icon: FolderKanban },
+        { label: 'Csapatok', to: ROUTES.TEAMS, icon: Users },
+        { label: 'Profil', to: ROUTES.PROFILE, icon: Settings },
+      ]
+
   return (
     <nav className="flex h-16 items-center justify-around border-t border-gray-200 bg-white px-2 lg:hidden">
       {items.map(({ label, to, icon: Icon }) => (

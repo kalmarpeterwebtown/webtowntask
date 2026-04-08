@@ -1,0 +1,224 @@
+WEBTOWN AGILE TASK MANAGER
+Felhasználói kézikönyv
+
+Készült: 2026-03-29
+
+1. A DOKUMENTUM CÉLJA
+
+Ez a kézikönyv a rendszer jelenleg elkészült és használható funkcióit foglalja össze.
+A leírás a ténylegesen megvalósított működésre épül, és segítséget ad a napi használathoz.
+
+2. BEJELENTKEZÉS ÉS HOZZÁFÉRÉS
+
+Elérhető bejelentkezési módok:
+- Email és jelszó
+- Google bejelentkezés
+- Elfelejtett jelszó folyamat
+- Meghívó alapú csatlakozás szervezethez
+
+Meghívó alapú belépés:
+- Az adminisztrátor új felhasználót tud meghívni.
+- A felhasználó regisztrálhat vagy bejelentkezhet, majd elfogadhatja a meghívást.
+- A meghívás szervezeti tagságot hoz létre.
+- A rendszer támogatja a megfelelő fiók kiválasztását több account használata esetén.
+
+3. SZERVEZETEK ÉS JOGOSULTSÁGOK
+
+Szervezeti szerepkörök:
+- Tulajdonos / Admin: teljes szervezeti adminisztráció
+- Standard: normál belső felhasználó
+- Ügyfél: korlátozott, ügyféloldali láthatóság
+
+Projekt és csapat hozzáférési szintek:
+- Olvasás: megtekintés, módosítás nélkül
+- Szerkesztés: napi munkavégzéshez szükséges módosítások
+- Kezelés: konfiguráció és tagságkezelés is lehetséges
+
+4. FŐ NAVIGÁCIÓ
+
+A bal oldali menü és a felső fejléc együtt biztosítják a fő navigációt.
+
+Fő menüpontok:
+- Áttekintő
+- Projektek
+- Csapatok
+- Riportok
+- Profil
+
+A bal oldali menü ki- és becsukható.
+A felső sávban megtalálható a globális kereső és az értesítési panel.
+
+5. GLOBÁLIS KERESŐ
+
+A fejlécben található Fő kereső egy teljes képernyős overlay kereső.
+
+Funkciók:
+- Megnyitható kattintással vagy Cmd+K / Ctrl+K billentyűvel
+- Keres projekt nevében
+- Keres csapat nevében
+- Keres story címben és leírásban
+- A találatok közvetlenül megnyithatók
+
+6. ÁTTEKINTŐ OLDAL
+
+Az Áttekintő oldal a napi munkát segítő személyes dashboard.
+
+Fő statisztikák:
+- Hozzám rendelt munka
+- Nyitott taskok
+- Aktív projektek száma
+- Időszaki worklog összesítés
+
+Személyes blokkok:
+- Hozzám rendelt munkák
+- Saját időráfordításom
+- Worklog trend
+
+7. PROJEKTEK
+
+Projektlista:
+- Az összes látható projekt kártyás formában jelenik meg
+- Jogosultsággal új projekt hozható létre
+- Létrehozás után a projekt frissítés nélkül megjelenik
+
+Projekt dashboard:
+- Gyors áttekintés a projekt állapotáról és aktivitásáról
+
+8. BACKLOG KEZELÉS
+
+A backlog projekt szintű nézet.
+
+Fő funkciók:
+- Backlog és Planbox kezelés
+- Kapcsolt boardok / csapatok megjelenítése
+- Inline story pontozás
+- Story részletes nézet megnyitása
+- Átjárás backlog és board között
+
+9. BOARD ÉS CSAPATNÉZET
+
+Board funkciók:
+- Oszlopok közötti drag and drop
+- Bal oldali backlog panel kapcsolt projektek storyjaival
+- Accordion projektlista a backlog panelben
+- Storyk boardra húzása backlogból és planboxból
+- Oszloponkénti SP összesítés
+- Felhasználó szerinti szűrés avatarokkal
+- Tag alapú szűrés
+- Keresés a teljes boardon
+- Inline story létrehozás
+- Gyors műveletek a 3 pontos menüből
+
+Sprint panel:
+- Aktív vagy tervezett sprint állapot
+- Sprint indítás
+- Sprint zárás
+- Burndown grafikon
+- Delivered elemek sprintenként csoportosítva
+
+Sprint működés:
+- Aktív sprint alatt a board elemei jelentik a sprint scope-ot
+- Sprint záráskor a kész elemek delivered státuszba kerülnek
+- A nem kész elemek maradhatnak a boardon vagy visszatehetők a backlogba
+
+10. STORY RÉSZLETES NÉZET
+
+Inline szerkesztés:
+- Cím és leírás szerkesztése
+- Típus, prioritás, méret, helyszín inline módosítása
+- Taskok kezelése közvetlenül a story alatt
+- Task leírás szerkesztése megnövelt mezővel
+
+WYSIWYG-szerű leírás:
+- Félkövér
+- Dőlt
+- Felsorolás
+- Automatikus mentés
+
+Komment és @mention:
+- Komment írás
+- @mention gépelés közbeni felhasználóajánlás
+- Értesítés a megemlített felhasználónak
+
+Csatolmányok:
+- Fájl feltöltés
+- Drag and drop feltöltés
+- Csatolmány lista
+
+Worklog:
+- Storyra és taskra is lehet időt logolni
+- Rugalmas formátumok: 1:30h, 90p, 45m
+- Összesített story worklog
+
+11. TASK KEZELÉS
+
+Task funkciók:
+- Task létrehozás story alatt
+- Task lezárás / újranyitás
+- Task assignee kiválasztása avataros menüvel
+- Task leírás inline szerkesztése
+- Task worklog rögzítés
+
+12. RIPORTOK
+
+Szervezeti riportok:
+- Aktív projektek összesítése
+- Összes story
+- Becsült SP
+- Blokkolt storyk
+- Projekt összehasonlítás
+- Közvetlen link a projekt riportokra
+
+Projekt riportok:
+- Státusz és típus bontások
+- Prioritási összesítések
+- Worklog személyenként
+- Teljesített és becsült SP alapú összegzés
+
+13. ÉRTESÍTÉSEK
+
+Funkciók:
+- Jobb felső értesítési panel
+- @mention alapú értesítések
+- Olvasatlan jelölések
+- Kattintható navigáció az érintett elemre
+
+14. PROFIL OLDAL
+
+Funkciók:
+- Saját név szerkesztése
+- Email megjelenítése
+- Szervezeti szerepkör megjelenítése
+- Jelszó módosítás email/jelszó alapú fióknál
+- Jelszó-visszaállító email küldése külső provideres esetben
+
+15. ÜGYFÉL NÉZET
+
+Az ügyfél szerepkörű felhasználó korlátozott, egyszerűsített hozzáférést kap.
+
+Jellemzők:
+- Projekt és kapcsolódó feladatok láthatók
+- Technikai adminisztráció nem érhető el
+- Worklog adatok nem láthatók
+- A felület üzleti használathoz igazított
+
+16. FONTOS MŰKÖDÉSI MEGJEGYZÉSEK
+
+- A rendszer aktív fejlesztés alatt áll
+- A Pages környezet és a lokális fejlesztői környezet is működőképes
+- A jogosultságkezelés nagy része megvalósult, de a backend oldali további keményítés fejlesztési irány marad
+
+17. AJÁNLOTT NAPI HASZNÁLATI FOLYAMAT
+
+1. Belépés a rendszerbe
+2. Áttekintő oldalon a saját munkák és időráfordítás ellenőrzése
+3. Projekt backlog vagy csapat board megnyitása
+4. Storyk és taskok frissítése
+5. Kommentek, mentionök és csatolmányok használata
+6. Munkaidő logolása
+7. Riportok áttekintése szükség szerint
+
+18. ÖSSZEFOGLALÁS
+
+A rendszer jelen állapotában már jól használható backlog, board, sprint, story, task, worklog, riport és értesítési alapokkal rendelkezik.
+A felület több felhasználói szerepkört, projekt- és csapatszintű jogosultságot, valamint modern napi munkafolyamatokat támogat.
